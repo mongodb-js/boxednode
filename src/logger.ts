@@ -24,7 +24,7 @@ export class LoggerImpl implements Logger {
   }
 
   stepFailed (err: Error): void {
-    console.warn(chalk.red(`  ✖ $ Failed: ${err.message}`));
+    console.warn(chalk.red(`  ✖  Failed: ${err.message}`));
     this.currentStep = '';
   }
 }
