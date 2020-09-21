@@ -3,7 +3,7 @@
 const { compileJSFileAsBinary } = require('..');
 const argv = require('yargs')
   .option('clean', {
-    alias: 'c', type: 'boolean', desc: 'Clean up temporary directory'
+    alias: 'c', type: 'boolean', desc: 'Clean up temporary directory after success'
   })
   .option('source', {
     alias: 's', type: 'string', demandOption: true, desc: 'Source .js file'

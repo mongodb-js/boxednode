@@ -125,11 +125,12 @@ async function compileNode (sourcePath: string, linkedJSModules: string[], logge
 
     return path.join(sourcePath, 'out', 'Release', 'node');
   } else {
-    const vcbuildArgs: string[] = ['build-release'];
+    // These settings got things to work locally. We may want to make this configurable.
+    const vcbuildArgs: string[] = ['release', 'vs2019'];
     for (const module of linkedJSModules) {
       vcbuildArgs.push('link-module', module);
     }
-    await spawnBuildCommand(['vcbuild', ...vcbuildArgs], options);
+    await spawnBuildCommand(['.\\vcbuild.bat', ...vcbuildArgs], options);
 
     return path.join(sourcePath, 'Release', 'node.exe');
   }

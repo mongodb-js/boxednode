@@ -22,7 +22,7 @@ Hello, world!
 ```sh
 Options:
       --version       Show version number                              [boolean]
-  -c, --clean         Clean up temporary directory                     [boolean]
+  -c, --clean         Clean up temporary directory after success       [boolean]
   -s, --source        Source .js file                        [string] [required]
   -t, --target        Target executable file                 [string] [required]
   -n, --node-version  Node.js version or semver version range
