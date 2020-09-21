@@ -158,7 +158,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   if (!options.tmpdir) {
     // We're not adding random data here, so that the paths can be part of a
     // compile caching mechanism like sccache.
-    options.tmpdir = path.join(os.tmpdir(), 'boxnode', namespace);
+    options.tmpdir = path.join(os.tmpdir(), 'boxednode', namespace);
   }
 
   const [nodeVersion, nodeSourcePath] = await getNodeSourceForVersion(

@@ -1,5 +1,5 @@
 {
-  "name": "boxnode",
+  "name": "boxednode",
   "version": "1.0.0",
   "description": "Create a shippable binary from a JS file",
   "main": "lib/index.js",
@@ -8,7 +8,7 @@
     "import": "./.gen-esm-wrapper.mjs"
   },
   "bin": {
-    "boxnode": "./bin/boxnode.js"
+    "boxnode": "./bin/boxednode.js"
   },
   "engines": {
     "node": ">= 12.4.0"

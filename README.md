@@ -1,4 +1,4 @@
-# 📦 boxnode – Ship a JS file with Node.js in a box
+# 📦 boxednode – Ship a JS file with Node.js in a box
 
 Take
 
@@ -12,7 +12,7 @@ For example:
 ```sh
 $ cat example.js
 console.log('Hello, world!');
-$ boxnode -s example.js -t example
+$ boxednode -s example.js -t example
 $ ./example
 Hello, world!
 ```
