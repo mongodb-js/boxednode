@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "downlevelIteration": true,
+    "sourceMap": true,
+    "strictNullChecks": false,
+    "declaration": true,
+    "removeComments": true,
+    "target": "es2018",
+    "lib": ["es2018"],
+    "outDir": "./lib",
+    "moduleResolution": "node",
+    "module": "commonjs"
+  },
+  "include": [
+    "./src/**/*"
+  ],
+  "exclude": [
+    "./src/**/*.spec.*"
+  ]
+}
