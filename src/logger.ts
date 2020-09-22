@@ -18,7 +18,6 @@ export class LoggerImpl implements Logger {
       this.stepCompleted();
     }
     this.currentStep = info;
-
     console.warn(`${chalk.yellow('→')}  ${info} ...`);
   }
 
@@ -31,8 +30,8 @@ export class LoggerImpl implements Logger {
   }
 
   stepCompleted (): void {
-    this._stepDone();
     console.warn(chalk.green(`  ✓  Completed: ${this.currentStep}`));
+    this._stepDone();
   }
 
   stepFailed (err: Error): void {
