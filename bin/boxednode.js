@@ -14,6 +14,12 @@ const argv = require('yargs')
   .option('node-version', {
     alias: 'n', type: 'string', desc: 'Node.js version or semver version range', default: '*'
   })
+  .option('configure-args', {
+    alias: 'C', type: 'string', desc: 'Extra ./configure or vcbuild arguments, comma-separated'
+  })
+  .option('make-args', {
+    alias: 'M', type: 'string', desc: 'Extra make or vcbuild arguments, comma-separated'
+  })
   .option('tmpdir', {
     type: 'string', desc: 'Temporary directory for compiling Node.js source'
   })
@@ -29,7 +35,9 @@ const argv = require('yargs')
       sourceFile: argv.s,
       targetFile: argv.t,
       tmpdir: argv.tmpdir,
-      clean: argv.c
+      clean: argv.c,
+      configureArgs: (argv.C || '').split(',').filter(Boolean),
+      makeArgs: (argv.M || '').split(',').filter(Boolean)
     });
   } catch (err) {
     console.error(err);

@@ -107,7 +107,11 @@ async function spawnBuildCommand (command: string[],
 }
 
 // Compile a Node.js build in a given directory from source
-async function compileNode (sourcePath: string, linkedJSModules: string[], logger: Logger): Promise<string> {
+async function compileNode (sourcePath: string,
+  linkedJSModules: string[],
+  buildArgs: string[],
+  makeArgs: string[],
+  logger: Logger): Promise<string> {
   logger.stepStarting('Compiling Node.js from source');
   const cpus = os.cpus().length;
   const options = {
@@ -116,17 +120,27 @@ async function compileNode (sourcePath: string, linkedJSModules: string[], logge
   };
 
   if (process.platform !== 'win32') {
-    const configureArgs: string[] = [];
+    const configure: string[] = ['./configure', ...buildArgs];
     for (const module of linkedJSModules) {
-      configureArgs.push('--link-module', module);
+      configure.push('--link-module', module);
     }
-    await spawnBuildCommand(['./configure', ...configureArgs], options);
-    await spawnBuildCommand(['make', `-j${cpus}`, 'V='], options);
+    await spawnBuildCommand(configure, options);
+
+    const make = ['make', ...makeArgs];
+    if (!make.some((arg) => /^-j/.test(arg))) { make.push(`-j${cpus}`); }
+
+    if (!make.some((arg) => /^V=/.test(arg))) { make.push('V='); }
+
+    await spawnBuildCommand(make, options);
 
     return path.join(sourcePath, 'out', 'Release', 'node');
   } else {
-    // These settings got things to work locally. We may want to make this configurable.
-    const vcbuildArgs: string[] = ['release', 'vs2019'];
+    // These defaults got things to work locally. We only include them if no
+    // conflicting arguments have been passed manually.
+    const vcbuildArgs: string[] = [...buildArgs, ...makeArgs];
+    if (!vcbuildArgs.includes('debug') && !vcbuildArgs.includes('release')) { vcbuildArgs.push('release'); }
+    if (!vcbuildArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2019'); }
+
     for (const module of linkedJSModules) {
       vcbuildArgs.push('link-module', module);
     }
@@ -141,6 +155,8 @@ type CompilationOptions = {
   tmpdir?: string,
   sourceFile: string,
   targetFile: string,
+  configureArgs?: string[],
+  makeArgs?: string[],
   logger?: Logger,
   clean?: boolean
 }
@@ -201,7 +217,12 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node.cc'), nodeCCSource);
   }
 
-  const binaryPath = await compileNode(nodeSourcePath, extraJSSourceFiles, logger);
+  const binaryPath = await compileNode(
+    nodeSourcePath,
+    extraJSSourceFiles,
+    options.configureArgs,
+    options.makeArgs,
+    logger);
 
   logger.stepStarting(`Moving resulting binary to ${options.targetFile}`);
   await fs.mkdir(path.dirname(options.targetFile), { recursive: true });
@@ -217,6 +238,17 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
 
 export async function compileJSFileAsBinary (options: CompilationOptions): Promise<void> {
   const logger = options.logger || new LoggerImpl();
+
+  options.configureArgs = options.configureArgs || [];
+  if (process.env.BOXEDNODE_CONFIGURE_ARGS) {
+    options.configureArgs.push(...process.env.BOXEDNODE_CONFIGURE_ARGS.split(','));
+  }
+
+  options.makeArgs = options.makeArgs || [];
+  if (process.env.BOXEDNODE_MAKE_ARGS) {
+    options.makeArgs.push(...process.env.BOXEDNODE_MAKE_ARGS.split(','));
+  }
+
   try {
     await compileJSFileAsBinaryImpl(options, logger);
   } catch (err) {
