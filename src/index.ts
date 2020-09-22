@@ -168,7 +168,8 @@ type CompilationOptions = {
   configureArgs?: string[],
   makeArgs?: string[],
   logger?: Logger,
-  clean?: boolean
+  clean?: boolean,
+  namespace?: string
 }
 
 async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: Logger): Promise<void> {
@@ -180,7 +181,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   // We'll put the source file in a namespaced path in the target directory.
   // For example, if the file name is `myproject.js`, then it will be available
   // for importing as `require('myproject/myproject')`.
-  const namespace = path.basename(options.sourceFile, '.js');
+  const namespace = options.namespace || path.basename(options.sourceFile, '.js');
   if (!options.tmpdir) {
     // We're not adding random data here, so that the paths can be part of a
     // compile caching mechanism like sccache.

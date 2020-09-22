@@ -51,13 +51,18 @@ type CompilationOptions = {
   targetFile: string;
 
   // Optional list of extra arguments to be passed to `./configure` or `vcbuild`
-  configureArgs?: string[],
+  configureArgs?: string[];
 
     // Optional list of extra arguments to be passed to `make` or `vcbuild`
-  makeArgs?: string[],
+  makeArgs?: string[];
 
   // If true, remove the temporary directory created earlier when done
   clean?: boolean;
+
+  // Specify the entrypoint target name. If this is 'foo', then the resulting
+  // binary will be able to load the source file as 'require("foo/foo")'.
+  // This defaults to the basename of sourceFile, e.g. 'bar' for '/path/bar.js'.
+  namespace?: string;
 };
 
 export function compileJSFileAsBinary(options: CompilationOptions);
