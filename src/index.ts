@@ -194,7 +194,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   logger.stepStarting('Inserting custom code into Node.js source');
   await fs.mkdir(path.join(nodeSourcePath, 'lib', namespace), { recursive: true });
   await fs.copyFile(options.sourceFile,
-    path.join(nodeSourcePath, 'lib', namespace, path.basename(options.sourceFile)));
+    path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`));
   const extraJSSourceFiles = [`./lib/${namespace}/${namespace}.js`];
 
   // In Node.js 14.x and above, we use the official embedder API for stability.
