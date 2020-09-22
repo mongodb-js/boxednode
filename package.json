@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "chalk": "^4.1.0",
+    "cli-progress": "^3.8.2",
     "node-fetch": "^2.6.1",
     "rimraf": "^3.0.2",
     "semver": "^7.3.2",

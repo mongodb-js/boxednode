@@ -69,6 +69,16 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
   logger.stepStarting(`Unpacking tarball to ${dir}`);
   await fs.mkdir(dir, { recursive: true });
 
+  const contentLength = +tarball.headers.get('Content-Length');
+  if (contentLength) {
+    logger.startProgress(contentLength);
+    let downloaded = 0;
+    tarball.body.on('data', (chunk) => {
+      downloaded += chunk.length;
+      logger.doProgress(downloaded);
+    });
+  }
+
   // Streaming unpack. This will create the directory `${dir}/node-${version}`
   // with the Node.js source tarball contents in it.
   await pipeline(
