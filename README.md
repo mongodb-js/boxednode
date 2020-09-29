@@ -59,6 +59,10 @@ type CompilationOptions = {
   // If true, remove the temporary directory created earlier when done
   clean?: boolean;
 
+  // Environment variables for build processes. Defaults to inheriting
+  // environment variables.
+  env?: { [name: string]: string };
+
   // Specify the entrypoint target name. If this is 'foo', then the resulting
   // binary will be able to load the source file as 'require("foo/foo")'.
   // This defaults to the basename of sourceFile, e.g. 'bar' for '/path/bar.js'.

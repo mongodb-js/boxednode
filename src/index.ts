@@ -15,6 +15,8 @@ import { promises as fs } from 'fs';
 
 const pipeline = promisify(stream.pipeline);
 
+type ProcessEnv = { [name: string]: string };
+
 type NodeVersionInfo = {
   version: string,
   files: string[],
@@ -97,10 +99,12 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
 type BuildCommandOptions = {
   cwd: string,
   logger: Logger,
+  env: ProcessEnv,
 };
 
 // Run a build command, e.g. `./configure`, `make`, `vcbuild`, etc.
-async function spawnBuildCommand (command: string[],
+async function spawnBuildCommand (
+  command: string[],
   options: BuildCommandOptions): Promise<void> {
   options.logger.stepStarting(`Running ${command.join(' ')}`);
   // We're not using childProcess.exec* because we do want to pass the output
@@ -117,16 +121,19 @@ async function spawnBuildCommand (command: string[],
 }
 
 // Compile a Node.js build in a given directory from source
-async function compileNode (sourcePath: string,
+async function compileNode (
+  sourcePath: string,
   linkedJSModules: string[],
   buildArgs: string[],
   makeArgs: string[],
+  env: ProcessEnv,
   logger: Logger): Promise<string> {
   logger.stepStarting('Compiling Node.js from source');
   const cpus = os.cpus().length;
   const options = {
     cwd: sourcePath,
-    logger: logger
+    logger: logger,
+    env: env
   };
 
   if (process.platform !== 'win32') {
@@ -169,6 +176,7 @@ type CompilationOptions = {
   makeArgs?: string[],
   logger?: Logger,
   clean?: boolean,
+  env?: ProcessEnv,
   namespace?: string
 }
 
@@ -233,6 +241,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     extraJSSourceFiles,
     options.configureArgs,
     options.makeArgs,
+    options.env || process.env,
     logger);
 
   logger.stepStarting(`Moving resulting binary to ${options.targetFile}`);

@@ -51,4 +51,20 @@ describe('basic functionality', () => {
       proc.kill();
     }
   });
+
+  it('passes through env vars', async function () {
+    this.timeout(2 * 60 * 60 * 1000); // 2 hours
+    try {
+      await compileJSFileAsBinary({
+        nodeVersionRange: '^12.0.0',
+        sourceFile: path.resolve(__dirname, 'resources/example.js'),
+        targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`),
+        env: { CC: 'false', CXX: 'false' }
+      });
+    } catch (err) {
+      return;
+    }
+
+    throw new Error('unreachable');
+  });
 });
