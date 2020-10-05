@@ -201,9 +201,22 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
 
   logger.stepStarting('Inserting custom code into Node.js source');
   await fs.mkdir(path.join(nodeSourcePath, 'lib', namespace), { recursive: true });
-  await fs.copyFile(options.sourceFile,
-    path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`));
-  const extraJSSourceFiles = [`./lib/${namespace}/${namespace}.js`];
+  const source = await fs.readFile(options.sourceFile, 'utf8');
+  await fs.writeFile(
+    path.join(nodeSourcePath, 'lib', namespace, `${namespace}_src.js`),
+    `module.exports = ${JSON.stringify(source)}`);
+  let entryPointTrampolineSource = await fs.readFile(
+    path.join(__dirname, '..', 'resources', 'entry-point-trampoline.js'), 'utf8');
+  entryPointTrampolineSource = entryPointTrampolineSource.replace(
+    /\bREPLACE_WITH_SOURCE_PATH\b/g,
+    JSON.stringify(`${namespace}/${namespace}_src`));
+  await fs.writeFile(
+    path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
+    entryPointTrampolineSource);
+  const extraJSSourceFiles = [
+    `./lib/${namespace}/${namespace}.js`,
+    `./lib/${namespace}/${namespace}_src.js`
+  ];
 
   // In Node.js 14.x and above, we use the official embedder API for stability.
   // In Node.js 12.x and below, we use the legacy _third_party_main mechanism

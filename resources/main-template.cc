@@ -78,8 +78,6 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
         env.get(),
         "const path = require('path');\n"
         "if (process.argv[2] === '--') process.argv.splice(2, 1);\n"
-        "global.__filename = process.execPath;\n"
-        "global.__dirname = path.dirname(process.execPath);\n"
         "require(" REPLACE_WITH_ENTRY_POINT ")");
 
     if (loadenv_ret.IsEmpty())  // There has been a JS exception.
