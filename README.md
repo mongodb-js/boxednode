@@ -67,7 +67,22 @@ type CompilationOptions = {
   // binary will be able to load the source file as 'require("foo/foo")'.
   // This defaults to the basename of sourceFile, e.g. 'bar' for '/path/bar.js'.
   namespace?: string;
+
+  // A list of native addons to link in.
+  addons?: AddonConfig[]
 };
+
+type AddonConfig = {
+  // Path to the root directory of the target addon, i.e. the one containing
+  // a binding.gyp file.
+  path: string,
+
+  // A regular expression to match for `require()` calls from the main file.
+  // `require(str)` will return the linked binding if `str` matches.
+  // This will *not* be the same as `require(path)`, which usually is a JS
+  // wrapper around this.
+  requireRegexp: RegExp
+}
 
 export function compileJSFileAsBinary(options: CompilationOptions);
 ```
@@ -87,6 +102,7 @@ Unlike others, this solution:
 - Uses only officially supported, stable Node.js APIs
 - Creates binaries that are not bloated with extra features
 - Creates binaries that can be signed and notarized on macOS
+- Supports linking native addons into the binary
 
 ## Prerequisites
 
@@ -96,7 +112,6 @@ a complete list of tools that may be necessary.
 
 ## Not supported
 
-- Native addons
 - Multiple JS files
 
 ## Similar projects

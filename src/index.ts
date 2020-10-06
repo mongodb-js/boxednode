@@ -5,17 +5,14 @@ import semver from 'semver';
 import tar from 'tar';
 import path from 'path';
 import zlib from 'zlib';
-import stream from 'stream';
-import childProcess from 'child_process';
 import os from 'os';
 import rimraf from 'rimraf';
-import { once } from 'events';
+import crypto from 'crypto';
 import { promisify } from 'util';
-import { promises as fs } from 'fs';
-
-const pipeline = promisify(stream.pipeline);
-
-type ProcessEnv = { [name: string]: string };
+import { promises as fs, createReadStream, createWriteStream } from 'fs';
+import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
+import { spawnBuildCommand, ProcessEnv, pipeline } from './helpers';
+import { Readable } from 'stream';
 
 type NodeVersionInfo = {
   version: string,
@@ -55,69 +52,106 @@ async function getBestNodeVersionForRange (range: string): Promise<NodeVersionIn
 }
 
 // Download and unpack a tarball containing the code for a specific Node.js version.
-async function getNodeSourceForVersion (range: string, dir: string, logger: Logger): Promise<[string, string]> {
+async function getNodeSourceForVersion (range: string, dir: string, logger: Logger, retries = 2): Promise<[string, string]> {
   logger.stepStarting(`Looking for Node.js version matching ${JSON.stringify(range)}`);
   const { version } = await getBestNodeVersionForRange(range);
 
-  const url = `https://nodejs.org/download/release/${version}/node-${version}.tar.gz`;
-  logger.stepStarting(`Downloading from ${url}`);
+  const releaseBaseUrl = `https://nodejs.org/download/release/${version}`;
+  const tarballName = `node-${version}.tar.gz`;
+  const cachedTarballPath = path.join(dir, tarballName);
 
-  const tarball = await fetch(url);
-
-  if (!tarball.ok) {
-    throw new Error(`Could not download Node.js source tarball: ${tarball.statusText}`);
+  let hasCachedTarball = false;
+  try {
+    hasCachedTarball = (await fs.stat(cachedTarballPath)).size > 0;
+  } catch {}
+  if (hasCachedTarball) {
+    const shaSumsUrl = `${releaseBaseUrl}/SHASUMS256.txt`;
+    logger.stepStarting(`Verifying existing tarball via ${shaSumsUrl}`);
+    const [expectedSha, realSha] = await Promise.all([
+      (async () => {
+        try {
+          const shaSums = await fetch(shaSumsUrl);
+          if (!shaSums.ok) return;
+          const text = await shaSums.text();
+          for (const line of text.split('\n')) {
+            if (line.trim().endsWith(tarballName)) {
+              return line.match(/^([0-9a-fA-F]+)\b/)[0];
+            }
+          }
+        } catch {}
+      })(),
+      (async () => {
+        const hash = crypto.createHash('sha256');
+        await pipeline(createReadStream(cachedTarballPath), hash);
+        return hash.digest('hex');
+      })()
+    ]);
+    if (expectedSha === realSha) {
+      logger.stepStarting('Unpacking existing tarball');
+    } else {
+      logger.stepFailed(new Error(
+        `SHA256 mismatch: got ${realSha}, expected ${expectedSha}`));
+      hasCachedTarball = false;
+    }
   }
 
-  logger.stepStarting(`Unpacking tarball to ${dir}`);
-  await fs.mkdir(dir, { recursive: true });
+  let tarballStream: Readable;
+  let tarballWritePromise: Promise<unknown>;
+  if (hasCachedTarball) {
+    tarballStream = createReadStream(cachedTarballPath);
+  } else {
+    const url = `${releaseBaseUrl}/${tarballName}`;
+    logger.stepStarting(`Downloading from ${url}`);
 
-  const contentLength = +tarball.headers.get('Content-Length');
-  if (contentLength) {
-    logger.startProgress(contentLength);
-    let downloaded = 0;
-    tarball.body.on('data', (chunk) => {
-      downloaded += chunk.length;
-      logger.doProgress(downloaded);
-    });
+    const tarball = await fetch(url);
+
+    if (!tarball.ok) {
+      throw new Error(`Could not download Node.js source tarball: ${tarball.statusText}`);
+    }
+
+    logger.stepStarting(`Unpacking tarball to ${dir}`);
+    await fs.mkdir(dir, { recursive: true });
+
+    const contentLength = +tarball.headers.get('Content-Length');
+    if (contentLength) {
+      logger.startProgress(contentLength);
+      let downloaded = 0;
+      tarball.body.on('data', (chunk) => {
+        downloaded += chunk.length;
+        logger.doProgress(downloaded);
+      });
+    }
+
+    tarballStream = tarball.body;
+    // It is important that this happens in the same tick as the streaming
+    // unpack below in order not to lose any data.
+    tarballWritePromise =
+      pipeline(tarball.body, createWriteStream(cachedTarballPath));
   }
 
   // Streaming unpack. This will create the directory `${dir}/node-${version}`
   // with the Node.js source tarball contents in it.
-  await pipeline(
-    tarball.body,
-    zlib.createGunzip(),
-    tar.x({
-      cwd: dir
-    })
-  );
+  try {
+    await pipeline(
+      tarballStream,
+      zlib.createGunzip(),
+      tar.x({
+        cwd: dir
+      })
+    );
+    await tarballWritePromise;
+  } catch (err) {
+    if (retries > 0) {
+      logger.stepFailed(err);
+      logger.stepStarting('Re-trying');
+      return await getNodeSourceForVersion(range, dir, logger, retries - 1);
+    }
+    throw err;
+  }
 
   logger.stepCompleted();
 
   return [version, path.join(dir, `node-${version}`)];
-}
-
-type BuildCommandOptions = {
-  cwd: string,
-  logger: Logger,
-  env: ProcessEnv,
-};
-
-// Run a build command, e.g. `./configure`, `make`, `vcbuild`, etc.
-async function spawnBuildCommand (
-  command: string[],
-  options: BuildCommandOptions): Promise<void> {
-  options.logger.stepStarting(`Running ${command.join(' ')}`);
-  // We're not using childProcess.exec* because we do want to pass the output
-  // through here and not handle it ourselves.
-  const proc = childProcess.spawn(command[0], command.slice(1), {
-    stdio: 'inherit',
-    ...options
-  });
-  const [code] = await once(proc, 'exit');
-  if (code !== 0) {
-    throw new Error(`Command failed: ${command.join(' ')} (code ${code})`);
-  }
-  options.logger.stepCompleted();
 }
 
 // Compile a Node.js build in a given directory from source
@@ -177,7 +211,8 @@ type CompilationOptions = {
   logger?: Logger,
   clean?: boolean,
   env?: ProcessEnv,
-  namespace?: string
+  namespace?: string,
+  addons?: AddonConfig[]
 }
 
 async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: Logger): Promise<void> {
@@ -199,37 +234,51 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   const [nodeVersion, nodeSourcePath] = await getNodeSourceForVersion(
     options.nodeVersionRange, options.tmpdir, logger);
 
-  logger.stepStarting('Inserting custom code into Node.js source');
-  await fs.mkdir(path.join(nodeSourcePath, 'lib', namespace), { recursive: true });
-  const source = await fs.readFile(options.sourceFile, 'utf8');
-  await fs.writeFile(
-    path.join(nodeSourcePath, 'lib', namespace, `${namespace}_src.js`),
-    `module.exports = ${JSON.stringify(source)}`);
-  let entryPointTrampolineSource = await fs.readFile(
-    path.join(__dirname, '..', 'resources', 'entry-point-trampoline.js'), 'utf8');
-  entryPointTrampolineSource = entryPointTrampolineSource.replace(
-    /\bREPLACE_WITH_SOURCE_PATH\b/g,
-    JSON.stringify(`${namespace}/${namespace}_src`));
-  await fs.writeFile(
-    path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
-    entryPointTrampolineSource);
-  const extraJSSourceFiles = [
-    `./lib/${namespace}/${namespace}.js`,
-    `./lib/${namespace}/${namespace}_src.js`
-  ];
+  const requireMappings: [RegExp, string][] = [];
+  const extraJSSourceFiles: string[] = [];
 
-  // In Node.js 14.x and above, we use the official embedder API for stability.
-  // In Node.js 12.x and below, we use the legacy _third_party_main mechanism
+  // In Node.js 12.19.0+, we use the official embedder API for stability.
+  // In Node.js 12.18.4 and below, we use the legacy _third_party_main mechanism
   // that will be removed in future Node.js versions.
-  // (The official embedder API will *probably* end up in a later v12.x release
-  // as well -- not clear yet at the time of writing, see
-  // https://github.com/nodejs/node/pull/35241.)
-  if (semver.gte(nodeVersion, '14.0.0')) {
+  if (semver.gte(nodeVersion, '12.19.0')) {
+    const extraGypDependencies: string[] = [];
+    const registerFunctions: string[] = [];
+    for (const addon of (options.addons || [])) {
+      const addonResult = await modifyAddonGyp(
+        addon, nodeSourcePath, options.env || process.env, logger);
+      for (const { linkedModuleName, targetName, registerFunction } of addonResult) {
+        requireMappings.push([addon.requireRegexp, linkedModuleName]);
+        extraGypDependencies.push(targetName);
+        registerFunctions.push(registerFunction);
+      }
+    }
+
+    logger.stepStarting('Finalizing linked addons processing');
+    const nodeGypiPath = path.join(nodeSourcePath, 'node.gypi');
+    const nodeGypi = await loadGYPConfig(nodeGypiPath);
+    nodeGypi.dependencies = [...(nodeGypi.dependencies || []), ...extraGypDependencies];
+    await storeGYPConfig(nodeGypiPath, nodeGypi);
+
+    for (const header of ['node.h', 'node_api.h']) {
+      const source = (
+        await fs.readFile(path.join(nodeSourcePath, 'src', header), 'utf8') +
+        await fs.readFile(path.join(__dirname, '..', 'resources', `add-${header}`), 'utf8')
+      );
+      await fs.writeFile(path.join(nodeSourcePath, 'src', header), source);
+    }
+    logger.stepCompleted();
+
+    logger.stepStarting('Handling main file source');
     let mainSource = await fs.readFile(
       path.join(__dirname, '..', 'resources', 'main-template.cc'), 'utf8');
     mainSource = mainSource.replace(/\bREPLACE_WITH_ENTRY_POINT\b/g,
       JSON.stringify(JSON.stringify(`${namespace}/${namespace}`)));
+    mainSource = mainSource.replace(/\bREPLACE_DECLARE_LINKED_MODULES\b/g,
+      registerFunctions.map((fn) => `void ${fn}(const void**,const void**);\n`).join(''));
+    mainSource = mainSource.replace(/\bREPLACE_DEFINE_LINKED_MODULES\b/g,
+      registerFunctions.map((fn) => `${fn},`).join(''));
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
+    logger.stepCompleted();
   } else {
     let tpmSource = await fs.readFile(
       path.join(__dirname, '..', 'resources', 'third_party_main.js'), 'utf8');
@@ -247,7 +296,38 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       /ProcessGlobalArgs\((?:[^{};]|[\r\n])*?kDisallowedInEnvironment(?:[^{}]|[\r\n])*?\)/,
       '0');
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node.cc'), nodeCCSource);
+
+    if (options.addons && options.addons.length > 0) {
+      logger.stepStarting('Handling linked addons');
+      logger.stepFailed(
+        new Error('Addons are not supported on Node v12.x, ignoring...'));
+    }
   }
+
+  logger.stepStarting('Inserting custom code into Node.js source');
+  await fs.mkdir(path.join(nodeSourcePath, 'lib', namespace), { recursive: true });
+  const source = await fs.readFile(options.sourceFile, 'utf8');
+  await fs.writeFile(
+    path.join(nodeSourcePath, 'lib', namespace, `${namespace}_src.js`),
+    `module.exports = ${JSON.stringify(source)}`);
+  let entryPointTrampolineSource = await fs.readFile(
+    path.join(__dirname, '..', 'resources', 'entry-point-trampoline.js'), 'utf8');
+  entryPointTrampolineSource = entryPointTrampolineSource.replace(
+    /\bREPLACE_WITH_SOURCE_PATH\b/g,
+    JSON.stringify(`${namespace}/${namespace}_src`));
+  entryPointTrampolineSource = entryPointTrampolineSource.replace(
+    /\bREPLACE_WITH_REQUIRE_MAPPINGS\b/g,
+    '([\n' + requireMappings.map(
+      ([re, linked]) => `[${re.toString()}, ${JSON.stringify(linked)}],\n`).join('') +
+    '])\n');
+  await fs.writeFile(
+    path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
+    entryPointTrampolineSource);
+  extraJSSourceFiles.push(
+    `./lib/${namespace}/${namespace}.js`,
+    `./lib/${namespace}/${namespace}_src.js`
+  );
+  logger.stepCompleted();
 
   const binaryPath = await compileNode(
     nodeSourcePath,

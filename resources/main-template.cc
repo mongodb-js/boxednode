@@ -4,6 +4,7 @@
 #undef NDEBUG
 
 #include "node.h"
+#include "node_api.h"
 #include "uv.h"
 
 using namespace node;
@@ -13,6 +14,17 @@ namespace boxednode {
 void InitializeOncePerProcess();
 void TearDownOncePerProcess();
 }
+
+extern "C" {
+typedef void (*register_boxednode_linked_module)(const void**, const void**);
+
+REPLACE_DECLARE_LINKED_MODULES
+}
+
+static register_boxednode_linked_module boxednode_linked_modules[] = {
+  REPLACE_DEFINE_LINKED_MODULES
+  nullptr  // Make sure the array is not empty, for MSVC
+};
 
 static int RunNodeInstance(MultiIsolatePlatform* platform,
                            const std::vector<std::string>& args,
@@ -31,7 +43,11 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
   std::shared_ptr<ArrayBufferAllocator> allocator =
       ArrayBufferAllocator::Create();
 
+#if NODE_VERSION_AT_LEAST(14, 0, 0)
   Isolate* isolate = NewIsolate(allocator, &loop, platform);
+#else
+  Isolate* isolate = NewIsolate(allocator.get(), &loop, platform);
+#endif
   if (isolate == nullptr) {
     fprintf(stderr, "%s: Failed to initialize V8 Isolate\n", args[0].c_str());
     return 1;
@@ -64,6 +80,22 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     std::unique_ptr<Environment, decltype(&node::FreeEnvironment)> env(
         node::CreateEnvironment(isolate_data.get(), context, args, exec_args),
         node::FreeEnvironment);
+
+    const void* node_mod;
+    const void* napi_mod;
+
+    for (register_boxednode_linked_module reg : boxednode_linked_modules) {
+      if (reg == nullptr) continue;
+      node_mod = nullptr;
+      napi_mod = nullptr;
+      reg(&node_mod, &napi_mod);
+      if (node_mod != nullptr)
+        AddLinkedBinding(env.get(), *static_cast<const node_module*>(node_mod));
+#if NODE_VERSION_AT_LEAST(14, 13, 0)
+      if (napi_mod != nullptr)
+        AddLinkedBinding(env.get(), *static_cast<const napi_module*>(napi_mod));
+#endif
+    }
 
     // Set up the Node.js instance for execution, and run code inside of it.
     // There is also a variant that takes a callback and provides it with
