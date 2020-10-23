@@ -33,6 +33,8 @@ module.exports = (() => {
   };
   vm.compileFunction(src, [
     '__filename', '__dirname', 'require', 'exports', 'module'
-  ])(__filename, __dirname, require, exports, module);
+  ], {
+    filename: __filename
+  })(__filename, __dirname, require, exports, module);
   return module.exports;
 })();
