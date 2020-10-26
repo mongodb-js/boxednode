@@ -188,7 +188,7 @@ async function compileNode (
   } else {
     // These defaults got things to work locally. We only include them if no
     // conflicting arguments have been passed manually.
-    const vcbuildArgs: string[] = [...buildArgs, ...makeArgs];
+    const vcbuildArgs: string[] = [...buildArgs, ...makeArgs, 'projgen'];
     if (!vcbuildArgs.includes('debug') && !vcbuildArgs.includes('release')) { vcbuildArgs.push('release'); }
     if (!vcbuildArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2019'); }
 
@@ -254,10 +254,12 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     }
 
     logger.stepStarting('Finalizing linked addons processing');
-    const nodeGypiPath = path.join(nodeSourcePath, 'node.gypi');
-    const nodeGypi = await loadGYPConfig(nodeGypiPath);
-    nodeGypi.dependencies = [...(nodeGypi.dependencies || []), ...extraGypDependencies];
-    await storeGYPConfig(nodeGypiPath, nodeGypi);
+    const nodeGypPath = path.join(nodeSourcePath, 'node.gyp');
+    const nodeGyp = await loadGYPConfig(nodeGypPath);
+    const mainTarget = nodeGyp.targets.find(
+      (target) => ['<(node_core_target_name)', 'node'].includes(target.target_name));
+    mainTarget.dependencies = [...(mainTarget.dependencies || []), ...extraGypDependencies];
+    await storeGYPConfig(nodeGypPath, nodeGyp);
 
     for (const header of ['node.h', 'node_api.h']) {
       const source = (
