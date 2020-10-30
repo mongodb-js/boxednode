@@ -27,6 +27,14 @@
     "shipping"
   ],
   "author": "Anna Henningsen <anna@addaleax.net>",
+  "homepage": "https://github.com/mongodb-js/boxednode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mongodb-js/boxednode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mongodb-js/boxednode/issues"
+  },
   "license": "Apache-2.0",
   "devDependencies": {
     "@types/mocha": "^8.0.3",
