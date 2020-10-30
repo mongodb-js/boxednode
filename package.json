@@ -1,6 +1,6 @@
 {
   "name": "boxednode",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Create a shippable binary from a JS file",
   "main": "lib/index.js",
   "exports": {
@@ -8,7 +8,7 @@
     "import": "./.esm-wrapper.mjs"
   },
   "bin": {
-    "boxnode": "./bin/boxednode.js"
+    "boxnode": "bin/boxednode.js"
   },
   "engines": {
     "node": ">= 12.4.0"
