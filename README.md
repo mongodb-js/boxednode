@@ -12,7 +12,7 @@ For example:
 ```sh
 $ cat example.js
 console.log('Hello, world!');
-$ boxednode -s example.js -t example
+$ boxnode -s example.js -t example
 $ ./example
 Hello, world!
 ```
