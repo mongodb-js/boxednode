@@ -19,6 +19,6 @@ expansions.yaml
 tmp/expansions.yaml
 .evergreen/mongodb
 tmp/
-.gen-esm-wrapper.mjs
+.esm-wrapper.mjs
 /lib/
 package-lock.json
