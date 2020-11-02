@@ -13,48 +13,16 @@ import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
 import { spawnBuildCommand, ProcessEnv, pipeline } from './helpers';
 import { Readable } from 'stream';
-
-type NodeVersionInfo = {
-  version: string,
-  files: string[],
-  // ... and others.
-}
-
-// Get a list of all published Node.js versions.
-async function getNodeVersionInfo (): Promise<NodeVersionInfo[]> {
-  const resp = await fetch('https://nodejs.org/download/release/index.json');
-  if (!resp.ok) {
-    throw new Error(`Could not get Node.js version info from nodejs.org/download: ${resp.statusText}`);
-  }
-  return await resp.json();
-}
-
-// Pick the highest Node.js version matching a specific semver range.
-async function getBestNodeVersionForRange (range: string): Promise<NodeVersionInfo> {
-  const versionInfos = await getNodeVersionInfo();
-
-  let maxVersion: NodeVersionInfo|null = null;
-  for (const info of versionInfos) {
-    if (!semver.satisfies(info.version, range)) {
-      continue; // Skip, not interested in this version anyway
-    }
-
-    if (maxVersion === null || semver.gt(info.version, maxVersion.version)) {
-      maxVersion = info;
-    }
-  }
-
-  if (!maxVersion) {
-    throw new Error(`Could not find matching Node.js version for ${JSON.stringify(range)}`);
-  }
-
-  return maxVersion;
-}
+import nv from '@pkgjs/nv';
 
 // Download and unpack a tarball containing the code for a specific Node.js version.
 async function getNodeSourceForVersion (range: string, dir: string, logger: Logger, retries = 2): Promise<[string, string]> {
   logger.stepStarting(`Looking for Node.js version matching ${JSON.stringify(range)}`);
-  const { version } = await getBestNodeVersionForRange(range);
+  const ver = (await nv(range)).pop();
+  if (!ver) {
+    throw new Error(`No node version found for ${range}`);
+  }
+  const version = `v${ver.version}`;
 
   const releaseBaseUrl = `https://nodejs.org/download/release/${version}`;
   const tarballName = `node-${version}.tar.gz`;

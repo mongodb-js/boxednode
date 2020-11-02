@@ -57,6 +57,7 @@
     "weak-napi": "2.0.2"
   },
   "dependencies": {
+    "@pkgjs/nv": "^0.1.0",
     "chalk": "^4.1.0",
     "cli-progress": "^3.8.2",
     "gyp-parser": "^1.0.1",
