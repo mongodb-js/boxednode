@@ -34,11 +34,14 @@ Options:
       --help            Show help                                      [boolean]
 ```
 
+Node.js versions may be specific versions, semver ranges, or any of the aliases
+supported by https://github.com/pkgjs/nv/.
+
 ## Programmatic API
 
 ```js
 type CompilationOptions = {
-  // Single Node.js version or semver range to pick from
+  // Single Node.js version, semver range or shorthand alias to pick from
   nodeVersionRange: string;
 
   // Optional temporary directory for storing and compiling Node.js source
