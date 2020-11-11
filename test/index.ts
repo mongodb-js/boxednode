@@ -46,6 +46,13 @@ describe('basic functionality', () => {
         assert.strictEqual(stdout, '3\n');
       }
 
+      {
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), ['process.argv[1] === process.execPath'],
+          { encoding: 'utf8' });
+        assert.strictEqual(stdout, 'true\n');
+      }
+
       if (process.platform !== 'win32') {
         const proc = childProcess.spawn(
           path.resolve(__dirname, `resources/example${exeSuffix}`),
