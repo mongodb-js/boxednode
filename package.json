@@ -1,6 +1,6 @@
 {
   "name": "boxednode",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Create a shippable binary from a JS file",
   "main": "lib/index.js",
   "exports": {
