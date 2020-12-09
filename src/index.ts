@@ -180,7 +180,8 @@ type CompilationOptions = {
   clean?: boolean,
   env?: ProcessEnv,
   namespace?: string,
-  addons?: AddonConfig[]
+  addons?: AddonConfig[],
+  preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
 
 async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: Logger): Promise<void> {
@@ -298,6 +299,12 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     `./lib/${namespace}/${namespace}_src.js`
   );
   logger.stepCompleted();
+
+  if (options.preCompileHook) {
+    logger.stepStarting('Running pre-compile hook');
+    await options.preCompileHook(nodeSourcePath, options);
+    logger.stepCompleted();
+  }
 
   const binaryPath = await compileNode(
     nodeSourcePath,

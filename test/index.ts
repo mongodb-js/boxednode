@@ -5,6 +5,7 @@ import childProcess from 'child_process';
 import semver from 'semver';
 import { promisify } from 'util';
 import pkgUp from 'pkg-up';
+import { promises as fs } from 'fs';
 
 const execFile = promisify(childProcess.execFile);
 const exeSuffix = process.platform === 'win32' ? '.exe' : '';
@@ -118,16 +119,23 @@ describe('basic functionality', () => {
       }
     });
 
-    it('passes through env vars  (shard 3)', async function () {
+    it('passes through env vars and runs the pre-compile hook (shard 3)', async function () {
       this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      let ranPreCompileHook = false;
+      async function preCompileHook (nodeSourceTree: string) {
+        ranPreCompileHook = true;
+        await fs.access(path.join(nodeSourceTree, 'lib', 'net.js'));
+      }
       try {
         await compileJSFileAsBinary({
           nodeVersionRange: version,
           sourceFile: path.resolve(__dirname, 'resources/example.js'),
           targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`),
-          env: { CC: 'false', CXX: 'false' }
+          env: { CC: 'false', CXX: 'false' },
+          preCompileHook
         });
       } catch (err) {
+        assert.strictEqual(ranPreCompileHook, true);
         return;
       }
 
