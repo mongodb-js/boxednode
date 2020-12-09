@@ -72,7 +72,10 @@ type CompilationOptions = {
   namespace?: string;
 
   // A list of native addons to link in.
-  addons?: AddonConfig[]
+  addons?: AddonConfig[];
+
+  // A custom hook that is run just before starting the compile step.
+  preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>;
 };
 
 type AddonConfig = {
