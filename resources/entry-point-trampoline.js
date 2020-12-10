@@ -2,8 +2,26 @@
 const Module = require('module');
 const vm = require('vm');
 const path = require('path');
-const src = require(REPLACE_WITH_SOURCE_PATH);
-const requireMappings = REPLACE_WITH_REQUIRE_MAPPINGS;
+const {
+  srcMod,
+  requireMappings,
+  enableBindingsPatch
+} = REPLACE_WITH_BOXEDNODE_CONFIG;
+const src = require(srcMod);
+const hydatedRequireMappings =
+  requireMappings.map(([re, reFlags, linked]) => [new RegExp(re, reFlags), linked]);
+
+if (enableBindingsPatch) {
+  const fs = require('fs');
+  const origFsAccessSync = fs.accessSync;
+  fs.accessSync = (filename, ...args) => {
+    if (path.basename(filename) === 'node_modules' &&
+        path.join(path.dirname(filename), '..') === path.dirname(filename)) {
+      return;
+    }
+    return origFsAccessSync.call(fs, filename, ...args);
+  };
+}
 
 module.exports = (() => {
   const __filename = process.execPath;
@@ -12,7 +30,7 @@ module.exports = (() => {
   const exports = {};
 
   function require(module) {
-    for (const [ re, linked ] of requireMappings) {
+    for (const [ re, linked ] of hydatedRequireMappings) {
       try {
         if (re.test(module))
           return process._linkedBinding(linked);
