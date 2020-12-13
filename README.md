@@ -74,6 +74,13 @@ type CompilationOptions = {
   // A list of native addons to link in.
   addons?: AddonConfig[];
 
+  // Make sure the binary works for addons that use the `bindings` npm package,
+  // which would otherwise not be compatible with a single-binary model.
+  // By default, this is enabled if any addons are specified and
+  // disabled otherwise.
+  // (This will make `fs.accessSync('/node_modules')` not throw an exception.)
+  enableBindingsPatch?: boolean;
+
   // A custom hook that is run just before starting the compile step.
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>;
 };

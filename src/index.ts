@@ -181,6 +181,7 @@ type CompilationOptions = {
   env?: ProcessEnv,
   namespace?: string,
   addons?: AddonConfig[],
+  enableBindingsPatch?: boolean,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
 
@@ -205,6 +206,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
 
   const requireMappings: [RegExp, string][] = [];
   const extraJSSourceFiles: string[] = [];
+  const enableBindingsPatch = options.enableBindingsPatch ?? options.addons?.length > 0;
 
   // In Node.js 12.19.0+, we use the official embedder API for stability.
   // In Node.js 12.18.4 and below, we use the legacy _third_party_main mechanism
@@ -284,13 +286,12 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   let entryPointTrampolineSource = await fs.readFile(
     path.join(__dirname, '..', 'resources', 'entry-point-trampoline.js'), 'utf8');
   entryPointTrampolineSource = entryPointTrampolineSource.replace(
-    /\bREPLACE_WITH_SOURCE_PATH\b/g,
-    JSON.stringify(`${namespace}/${namespace}_src`));
-  entryPointTrampolineSource = entryPointTrampolineSource.replace(
-    /\bREPLACE_WITH_REQUIRE_MAPPINGS\b/g,
-    '([\n' + requireMappings.map(
-      ([re, linked]) => `[${re.toString()}, ${JSON.stringify(linked)}],\n`).join('') +
-    '])\n');
+    /\bREPLACE_WITH_BOXEDNODE_CONFIG\b/g,
+    JSON.stringify({
+      srcMod: `${namespace}/${namespace}_src`,
+      requireMappings: requireMappings.map(([re, linked]) => [re.source, re.flags, linked]),
+      enableBindingsPatch
+    }));
   await fs.writeFile(
     path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
     entryPointTrampolineSource);
