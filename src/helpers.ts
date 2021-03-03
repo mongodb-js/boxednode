@@ -9,7 +9,7 @@ import { once } from 'events';
 
 export const pipeline = promisify(stream.pipeline);
 
-export type ProcessEnv = { [name: string]: string };
+export type ProcessEnv = { [name: string]: string | undefined };
 
 export type BuildCommandOptions = {
   cwd: string,

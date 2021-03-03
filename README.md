@@ -64,7 +64,7 @@ type CompilationOptions = {
 
   // Environment variables for build processes. Defaults to inheriting
   // environment variables.
-  env?: { [name: string]: string };
+  env?: { [name: string]: string | undefined };
 
   // Specify the entrypoint target name. If this is 'foo', then the resulting
   // binary will be able to load the source file as 'require("foo/foo")'.
@@ -83,19 +83,44 @@ type CompilationOptions = {
 
   // A custom hook that is run just before starting the compile step.
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>;
+
+  // A list of attributes to set on the generated executable. This is currently
+  // only being used on Windows.
+  executableMetadata?: ExecutableMetadata;
 };
 
 type AddonConfig = {
   // Path to the root directory of the target addon, i.e. the one containing
   // a binding.gyp file.
-  path: string,
+  path: string;
 
   // A regular expression to match for `require()` calls from the main file.
   // `require(str)` will return the linked binding if `str` matches.
   // This will *not* be the same as `require(path)`, which usually is a JS
   // wrapper around this.
-  requireRegexp: RegExp
-}
+  requireRegexp: RegExp;
+};
+
+type ExecutableMetadata = {
+  // Sets Windows .exe InternalName and ProductName
+  name?: string;
+
+  // Sets Windows .exe FileDescription
+  description?: string;
+
+  // Sets Windows .exe FileVersion and ProductVersion
+  version?: string;
+
+  // Sets Windows .exe CompanyName
+  manufacturer?: string;
+
+  // Sets Windows .exe LegalCopyright
+  copyright?: string;
+
+  // Provides the path to a .ico file to use for the
+  // Windows .exe file.
+  icon?: string;
+};
 
 export function compileJSFileAsBinary(options: CompilationOptions);
 ```
