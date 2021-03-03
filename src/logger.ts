@@ -10,8 +10,8 @@ export interface Logger {
 }
 
 export class LoggerImpl implements Logger {
-  currentStep = '';
-  cliProgress : cliProgress.SingleBar | null = null;
+  private currentStep = '';
+  private cliProgress : cliProgress.SingleBar | null = null;
 
   stepStarting (info: string): void {
     if (this.currentStep) {

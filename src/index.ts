@@ -11,6 +11,7 @@ import crypto from 'crypto';
 import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
+import { ExecutableMetadata, generateRCFile } from './executable-metadata';
 import { spawnBuildCommand, ProcessEnv, pipeline } from './helpers';
 import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
@@ -182,6 +183,7 @@ type CompilationOptions = {
   namespace?: string,
   addons?: AddonConfig[],
   enableBindingsPatch?: boolean,
+  executableMetadata?: ExecutableMetadata,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
 
@@ -299,6 +301,13 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     `./lib/${namespace}/${namespace}.js`,
     `./lib/${namespace}/${namespace}_src.js`
   );
+  logger.stepCompleted();
+
+  logger.stepStarting('Storing executable metadata');
+  const resPath = path.join(nodeSourcePath, 'src', 'res');
+  await fs.writeFile(
+    path.join(resPath, 'node.rc'),
+    await generateRCFile(resPath, options.targetFile, options.executableMetadata));
   logger.stepCompleted();
 
   if (options.preCompileHook) {
