@@ -38,7 +38,8 @@ export async function spawnBuildCommand (
   // through here and not handle it ourselves.
   const proc = childProcess.spawn(command[0], command.slice(1), {
     stdio: 'inherit',
-    ...options
+    ...options,
+    env
   });
   const [code] = await once(proc, 'exit');
   if (code !== 0) {
