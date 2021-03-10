@@ -26,8 +26,8 @@ export async function spawnBuildCommand (
   // the case handling of PATH on win32 changed, and the build
   // will fail if the env var's case is e.g. Path instead of PATH.
   // We normalize to PATH here.
+  const env = options.env;
   if (process.platform === 'win32') {
-    const env = options.env;
     const PATH = env.PATH ?? env.Path ?? env.path;
     delete env.PATH;
     delete env.Path;
