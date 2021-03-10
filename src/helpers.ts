@@ -22,11 +22,24 @@ export async function spawnBuildCommand (
   command: string[],
   options: BuildCommandOptions): Promise<void> {
   options.logger.stepStarting(`Running ${command.join(' ')}`);
+  // Fun stuff: Sometime between Node.js 14.15.0 and 14.16.0,
+  // the case handling of PATH on win32 changed, and the build
+  // will fail if the env var's case is e.g. Path instead of PATH.
+  // We normalize to PATH here.
+  const env = options.env;
+  if (process.platform === 'win32') {
+    const PATH = env.PATH ?? env.Path ?? env.path;
+    delete env.PATH;
+    delete env.Path;
+    delete env.path;
+    env.PATH = PATH;
+  }
   // We're not using childProcess.exec* because we do want to pass the output
   // through here and not handle it ourselves.
   const proc = childProcess.spawn(command[0], command.slice(1), {
     stdio: 'inherit',
-    ...options
+    ...options,
+    env
   });
   const [code] = await once(proc, 'exit');
   if (code !== 0) {
