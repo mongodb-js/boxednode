@@ -23,7 +23,7 @@ export async function spawnBuildCommand (
   options: BuildCommandOptions): Promise<void> {
   options.logger.stepStarting(`Running ${command.join(' ')}`);
   // Fun stuff: Sometime between Node.js 14.15.0 and 14.16.0,
-  // the case handling of PATH on win32 changed, and the build 
+  // the case handling of PATH on win32 changed, and the build
   // will fail if the env var's case is e.g. Path instead of PATH.
   // We normalize to PATH here.
   if (process.platform === 'win32') {
