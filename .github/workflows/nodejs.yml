@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        node-version: [12.18.4, 12.x, 14.x, 15.x]
+        node-version: [12.18.4, 12.x, 14.x, 16.x]
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@v2
