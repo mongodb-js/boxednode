@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [12.18.4, 12.x, 14.x, 15.x]
+        node-version: [12.18.4, 12.x, 14.x, 16.x]
         shard: [1, 2, 3]
     runs-on: windows-latest
     steps:
