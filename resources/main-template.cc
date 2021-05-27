@@ -169,10 +169,8 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
   return exit_code;
 }
 
-int main(int argc, char** argv) {
+static int BoxednodeMain(std::vector<std::string> args) {
   boxednode::InitializeOncePerProcess();
-  argv = uv_setup_args(argc, argv);
-  std::vector<std::string> args(argv, argv + argc);
   std::vector<std::string> exec_args;
   std::vector<std::string> errors;
 
@@ -204,6 +202,42 @@ int main(int argc, char** argv) {
   boxednode::TearDownOncePerProcess();
   return ret;
 }
+
+#ifdef _WIN32
+int wmain(int argc, wchar_t* wargv[]) {
+  // Convert argv to UTF8
+  std::vector<std::string> args;
+  for (int i = 0; i < argc; i++) {
+    DWORD size = WideCharToMultiByte(CP_UTF8,
+                                     0,
+                                     wargv[i],
+                                     -1,
+                                     nullptr,
+                                     0,
+                                     nullptr,
+                                     nullptr);
+    assert(size > 0);
+    std::string arg(size, '\0');
+    DWORD result = WideCharToMultiByte(CP_UTF8,
+                                       0,
+                                       wargv[i],
+                                       -1,
+                                       &arg[0],
+                                       size,
+                                       nullptr,
+                                       nullptr);
+    assert(result > 0);
+  }
+  return BoxednodeMain(std::move(args));
+}
+
+#else
+int main(int argc, char** argv) {
+  argv = uv_setup_args(argc, argv);
+  std::vector<std::string> args(argv, argv + argc);
+  return BoxednodeMain(std::move(args));
+}
+#endif
 
 // The code below is mostly lifted directly from node.cc
 // TODO(addaleax): Expose these APIs on the Node.js side.
