@@ -42,6 +42,13 @@ describe('basic functionality', () => {
 
       {
         const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), ['"🐈"'],
+          { encoding: 'utf8' });
+        assert.strictEqual(stdout, '🐈\n');
+      }
+
+      {
+        const { stdout } = await execFile(
           path.resolve(__dirname, `resources/example${exeSuffix}`), ['process.argv.length'],
           { encoding: 'utf8' });
         assert.strictEqual(stdout, '3\n');
