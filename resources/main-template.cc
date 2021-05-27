@@ -227,6 +227,7 @@ int wmain(int argc, wchar_t* wargv[]) {
                                        nullptr,
                                        nullptr);
     assert(result > 0);
+    args.emplace_back(std::move(arg));
   }
   return BoxednodeMain(std::move(args));
 }
