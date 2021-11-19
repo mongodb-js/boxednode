@@ -70,6 +70,12 @@ function turnIntoStaticLibrary (config: GypConfig, addonId: string): AddonResult
     target['defines!'] = [...negDefines];
     target['win_delay_load_hook'] = 'false';
 
+    // Remove node-addon-api gyp dummy, which inserts nothing.c into
+    // the build tree, which can conflict with other target's nothing.c
+    // files.
+    target['dependencies'] = target['dependencies']?.filter(
+      dep => !/require\s*\(.+node-addon-api.+\)\s*\.\s*gyp/.test(dep)) ?? [];
+
     result.push({
       targetName: target.target_name,
       registerFunction,
@@ -86,11 +92,6 @@ async function prepForUsageWithNode (
   (config.includes = config.includes || []).push(
     path.join(nodeGypDir, 'addon.gypi')
   );
-  // Remove node-addon-api gyp dummy, which inserts nothing.c into
-  // the build tree, which can conflict with other target's nothing.c
-  // files.
-  config.dependencies = config.dependencies?.filter(
-    dep => !/require\s*\(.+node-addon-api.+\)\s*\.\s*gyp/.test(dep)) ?? [];
   config.variables = {
     ...(config.variables || {}),
     'node_root_dir%': nodeSourcePath,
