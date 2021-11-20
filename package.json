@@ -62,7 +62,7 @@
     "cli-progress": "^3.8.2",
     "gyp-parser": "^1.0.1",
     "node-fetch": "^2.6.1",
-    "node-gyp": "^7.1.0",
+    "node-gyp": "^8.4.0",
     "pkg-up": "^3.1.0",
     "rimraf": "^3.0.2",
     "semver": "^7.3.2",
