@@ -12,6 +12,7 @@ const hydatedRequireMappings =
   requireMappings.map(([re, reFlags, linked]) => [new RegExp(re, reFlags), linked]);
 
 if (enableBindingsPatch) {
+  // Hack around various deficiencies in https://github.com/TooTallNate/node-bindings
   const fs = require('fs');
   const origFsAccessSync = fs.accessSync;
   fs.accessSync = (filename, ...args) => {
@@ -21,6 +22,33 @@ if (enableBindingsPatch) {
     }
     return origFsAccessSync.call(fs, filename, ...args);
   };
+
+  let epst = Error.prepareStackTrace;
+  Object.defineProperty(Error, 'prepareStackTrace', {
+    configurable: true,
+    get() {
+      return epst;
+    },
+    set(v) {
+      if (typeof v !== 'function') {
+        epst = v;
+        return;
+      }
+      epst = function(error, stack) {
+        stack = stack.map(entry => {
+          if (!entry) return entry;
+          const origGetFileName = entry.getFileName;
+          Object.defineProperty(entry, 'getFileName', {
+            value: function(...args) {
+              return origGetFileName.call(this, ...args) || '';
+            }
+          });
+          return entry;
+        })
+        return v.call(this, error, stack);
+      };
+    }
+  });
 }
 
 module.exports = (() => {
