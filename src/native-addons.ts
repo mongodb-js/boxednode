@@ -1,4 +1,5 @@
 /* eslint-disable dot-notation */
+import { randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import { parse } from 'gyp-parser';
 import path from 'path';
@@ -61,7 +62,8 @@ function turnIntoStaticLibrary (config: GypConfig, addonId: string): AddonResult
     for (const want of [
       'BUILDING_BOXEDNODE_EXTENSION',
       `BOXEDNODE_REGISTER_FUNCTION=${registerFunction}`,
-      `BOXEDNODE_MODULE_NAME=${linkedModuleName}`
+      `BOXEDNODE_MODULE_NAME=${linkedModuleName}`,
+      `NAPI_CPP_CUSTOM_NAMESPACE=i${randomBytes(12).toString('hex')}`
     ]) {
       negDefines.delete(want);
       posDefines.add(want);
