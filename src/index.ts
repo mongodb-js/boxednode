@@ -336,21 +336,32 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   }
 }
 
-export async function compileJSFileAsBinary (options: CompilationOptions): Promise<void> {
+// Allow specifying arguments to make/configure/vcbuild through env vars,
+// either as a comma-separated list or as a JSON array
+function parseEnvVarArgList (value: string | undefined): string[] {
+  if (!value) return [];
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value.split(',');
+  }
+}
+
+export async function compileJSFileAsBinary (options: Readonly<CompilationOptions>): Promise<void> {
   const logger = options.logger || new LoggerImpl();
 
-  options.configureArgs = options.configureArgs || [];
-  if (process.env.BOXEDNODE_CONFIGURE_ARGS) {
-    options.configureArgs.push(...process.env.BOXEDNODE_CONFIGURE_ARGS.split(','));
-  }
+  const configureArgs = [...(options.configureArgs || [])];
+  configureArgs.push(...parseEnvVarArgList(process.env.BOXEDNODE_CONFIGURE_ARGS));
 
-  options.makeArgs = options.makeArgs || [];
-  if (process.env.BOXEDNODE_MAKE_ARGS) {
-    options.makeArgs.push(...process.env.BOXEDNODE_MAKE_ARGS.split(','));
-  }
+  const makeArgs = [...(options.makeArgs || [])];
+  makeArgs.push(...parseEnvVarArgList(process.env.BOXEDNODE_MAKE_ARGS));
 
   try {
-    await compileJSFileAsBinaryImpl(options, logger);
+    await compileJSFileAsBinaryImpl({
+      ...options,
+      configureArgs,
+      makeArgs
+    }, logger);
   } catch (err) {
     logger.stepFailed(err);
     throw err;
