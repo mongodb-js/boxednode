@@ -1,9 +1,5 @@
 on: [push, pull_request]
 
-defaults:
-  run:
-    shell: bash
-
 name: CI
 
 jobs:
