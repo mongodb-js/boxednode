@@ -1,5 +1,9 @@
 on: [push, pull_request]
 
+defaults:
+  run:
+    shell: bash
+
 name: CI
 
 jobs:
@@ -50,8 +54,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Install npm@8.x
         run: npm install -g npm@8.x
-      - name: Set VS version
-        run: npm config set msvs_version 2022
       - name: Install Dependencies
         run: npm install
       - name: Sharded tests
