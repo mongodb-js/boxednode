@@ -35,13 +35,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
-      - name: set up python
+      - name: Set up python
         uses: actions/setup-python@v2
         with:
           python-version: '3.x'
       - name: Install Node.js build deps
         run: choco install nasm
-      - name: setup developer command prompt
+      - name: Set up developer command prompt
         uses: ilammy/msvc-dev-cmd@v1
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v2
@@ -50,6 +50,8 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Install npm@8.x
         run: npm install -g npm@8.x
+      - name: Set VS version
+        run: npm config set msvs_version 2022
       - name: Install Dependencies
         run: npm install
       - name: Sharded tests
