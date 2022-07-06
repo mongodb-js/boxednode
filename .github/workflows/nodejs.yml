@@ -2,6 +2,10 @@ on: [push, pull_request]
 
 name: CI
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
 #  test-posix:
 #    name: Unix tests
