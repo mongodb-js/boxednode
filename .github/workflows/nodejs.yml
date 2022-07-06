@@ -40,13 +40,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Setup python
+      - name: Install python
         uses: actions/setup-python@v2
         with:
           python-version: '3.x'
       - name: Install Node.js build deps
         run: choco install nasm
-      - name: Setup developer command prompt
+      - name: Install developer command prompt
         uses: ilammy/msvc-dev-cmd@v1
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v2
