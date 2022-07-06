@@ -7,27 +7,28 @@ defaults:
     shell: bash
 
 jobs:
-#  test-posix:
-#    name: Unix tests
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        os: [ubuntu-latest, macos-latest]
-#        node-version: [12.18.4, 12.x, 14.x, 16.x]
-#    runs-on: ${{matrix.os}}
-#    steps:
-#      - uses: actions/checkout@v2
-#      - name: Use Node.js ${{ matrix.node-version }}
-#        uses: actions/setup-node@v2
-#        with:
-#          check-latest: true
-#          node-version: ${{ matrix.node-version }}
-#      - name: Install npm@8.x
-#        run: npm install -g npm@8.x
-#      - name: Install Dependencies
-#        run: npm install
-#      - name: Test
-#        run: npm test
+  test-posix:
+    name: Unix tests
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [14.x, 16.x, 18.x]
+    runs-on: ${{matrix.os}}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          check-latest: true
+          node-version: ${{ matrix.node-version }}
+      - name: Install npm@8.x
+        if: ${{ matrix.node-version == '14.x' }}
+        run: npm install -g npm@8.x
+      - name: Install Dependencies
+        run: npm install
+      - name: Test
+        run: npm test
 
   test-windows:
     name: Windows tests
