@@ -60,7 +60,7 @@
     "@pkgjs/nv": "^0.2.1",
     "chalk": "^4.1.0",
     "cli-progress": "^3.8.2",
-    "gyp-parser": "^1.0.1",
+    "gyp-parser": "^1.0.4",
     "node-fetch": "^2.6.1",
     "node-gyp": "^9.0.0",
     "pkg-up": "^3.1.0",
