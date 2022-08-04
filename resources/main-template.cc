@@ -188,7 +188,8 @@ static int BoxednodeMain(std::vector<std::string> args) {
   std::vector<std::string> exec_args;
   std::vector<std::string> errors;
 
-  args.insert(args.begin(), "--");
+  if (args.size() > 0)
+    args.insert(args.begin() + 1, "--");
 
   // Parse Node.js CLI options, and print any errors that have occurred while
   // trying to parse them.
@@ -201,6 +202,8 @@ static int BoxednodeMain(std::vector<std::string> args) {
     return exit_code;
   }
 #else
+  if (args.size() > 1)
+    args.insert(args.begin() + 1, "--openssl-shared-config");
   auto result = node::InitializeOncePerProcess(args, {
     node::ProcessInitializationFlags::kNoInitializeV8,
     node::ProcessInitializationFlags::kNoInitializeNodeV8Platform,
@@ -211,6 +214,8 @@ static int BoxednodeMain(std::vector<std::string> args) {
   if (result->exit_code() != 0) {
     return result->exit_code();
   }
+  args = result->args();
+  exec_args = result->exec_args();
 #endif
 
   // Create a v8::Platform instance. `MultiIsolatePlatform::Create()` is a way
