@@ -275,7 +275,7 @@ int main(int argc, char** argv) {
 #endif
 
 // The code below is mostly lifted directly from node.cc
-#if USE_OWN_LEGACY_PROCESS_INITIALIZATION
+#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
 
 #if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
 #define NODE_USE_V8_WASM_TRAP_HANDLER 1
