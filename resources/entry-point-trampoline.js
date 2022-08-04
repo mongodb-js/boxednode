@@ -69,7 +69,7 @@ module.exports = (() => {
   Object.defineProperties(require, Object.getOwnPropertyDescriptors(innerRequire));
   Object.setPrototypeOf(require, Object.getPrototypeOf(innerRequire));
 
-  process.argv[1] = __filename;
+  process.argv.unshift(__filename);
 
   const module = {
     exports,
