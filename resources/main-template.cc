@@ -19,9 +19,11 @@
 using namespace node;
 using namespace v8;
 
-// Make this depend on the Node.js version if/when
-// https://github.com/nodejs/node/pull/44121 is released.
+// This version can potentially be lowered if/when
+// https://github.com/nodejs/node/pull/44121 is backported.
+#if !NODE_VERSION_AT_LEAST(19, 0, 0)
 #define USE_OWN_LEGACY_PROCESS_INITIALIZATION 1
+#endif
 
 #ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
 namespace boxednode {
