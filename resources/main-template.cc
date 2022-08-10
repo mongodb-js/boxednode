@@ -6,14 +6,31 @@
 #include "node.h"
 #include "node_api.h"
 #include "uv.h"
+#if HAVE_OPENSSL
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#include <openssl/bn.h>
+#include <openssl/dh.h>
+#include <openssl/ec.h>
+#include <openssl/rsa.h>
+#include <openssl/rand.h>
+#endif
 
 using namespace node;
 using namespace v8;
 
+// This version can potentially be lowered if/when
+// https://github.com/nodejs/node/pull/44121 is backported.
+#if !NODE_VERSION_AT_LEAST(19, 0, 0)
+#define USE_OWN_LEGACY_PROCESS_INITIALIZATION 1
+#endif
+
+#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
 namespace boxednode {
 void InitializeOncePerProcess();
 void TearDownOncePerProcess();
 }
+#endif
 
 extern "C" {
 typedef void (*register_boxednode_linked_module)(const void**, const void**);
@@ -170,20 +187,38 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
 }
 
 static int BoxednodeMain(std::vector<std::string> args) {
-  boxednode::InitializeOncePerProcess();
   std::vector<std::string> exec_args;
   std::vector<std::string> errors;
 
-  args.insert(args.begin(), "--");
+  if (args.size() > 0)
+    args.insert(args.begin() + 1, "--");
 
   // Parse Node.js CLI options, and print any errors that have occurred while
   // trying to parse them.
+#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
+  boxednode::InitializeOncePerProcess();
   int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
   for (const std::string& error : errors)
     fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
   if (exit_code != 0) {
     return exit_code;
   }
+#else
+  if (args.size() > 1)
+    args.insert(args.begin() + 1, "--openssl-shared-config");
+  auto result = node::InitializeOncePerProcess(args, {
+    node::ProcessInitializationFlags::kNoInitializeV8,
+    node::ProcessInitializationFlags::kNoInitializeNodeV8Platform,
+    node::ProcessInitializationFlags::kNoPrintHelpOrVersionOutput
+  });
+  for (const std::string& error : result->errors())
+    fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
+  if (result->exit_code() != 0) {
+    return result->exit_code();
+  }
+  args = result->args();
+  exec_args = result->exec_args();
+#endif
 
   // Create a v8::Platform instance. `MultiIsolatePlatform::Create()` is a way
   // to create a v8::Platform instance that Node.js can use when creating
@@ -198,8 +233,13 @@ static int BoxednodeMain(std::vector<std::string> args) {
   int ret = RunNodeInstance(platform.get(), args, exec_args);
 
   V8::Dispose();
+#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
   V8::ShutdownPlatform();
   boxednode::TearDownOncePerProcess();
+#else
+  V8::DisposePlatform();
+  node::TearDownOncePerProcess();
+#endif
   return ret;
 }
 
@@ -242,7 +282,7 @@ int main(int argc, char** argv) {
 #endif
 
 // The code below is mostly lifted directly from node.cc
-// TODO(addaleax): Expose these APIs on the Node.js side.
+#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
 
 #if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
 #define NODE_USE_V8_WASM_TRAP_HANDLER 1
@@ -278,6 +318,30 @@ static PVOID old_vectored_exception_handler;
 #include <atomic>
 
 namespace boxednode {
+
+#if HAVE_OPENSSL
+static void CheckEntropy() {
+  for (;;) {
+    int status = RAND_status();
+    assert(status >= 0);  // Cannot fail.
+    if (status != 0)
+      break;
+
+    // Give up, RAND_poll() not supported.
+    if (RAND_poll() == 0)
+      break;
+  }
+}
+
+static bool EntropySource(unsigned char* buffer, size_t length) {
+  // Ensure that OpenSSL's PRNG is properly seeded.
+  CheckEntropy();
+  // RAND_bytes() can return 0 to indicate that the entropy data is not truly
+  // random. That's okay, it's still better than V8's stock source of entropy,
+  // which is /dev/urandom on UNIX platforms and the current time on Windows.
+  return RAND_bytes(buffer, length) != -1;
+}
+#endif
 
 void ResetStdio();
 
@@ -550,9 +614,41 @@ void ResetStdio() {
 #endif  // __POSIX__
 }
 
+static void InitializeOpenSSL() {
+#if HAVE_OPENSSL && !defined(OPENSSL_IS_BORINGSSL)
+  // In the case of FIPS builds we should make sure
+  // the random source is properly initialized first.
+#if OPENSSL_VERSION_MAJOR >= 3
+  // Use OPENSSL_CONF environment variable is set.
+  const char* conf_file = getenv("OPENSSL_CONF");
+
+  OPENSSL_INIT_SETTINGS* settings = OPENSSL_INIT_new();
+  OPENSSL_INIT_set_config_filename(settings, conf_file);
+  OPENSSL_INIT_set_config_appname(settings, "openssl_conf");
+  OPENSSL_INIT_set_config_file_flags(settings,
+                                      CONF_MFLAGS_IGNORE_MISSING_FILE);
+
+  OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, settings);
+  OPENSSL_INIT_free(settings);
+
+  if (ERR_peek_error() != 0) {
+    fprintf(stderr, "OpenSSL configuration error:\n");
+    ERR_print_errors_fp(stderr);
+    exit(1);
+  }
+#else  // OPENSSL_VERSION_MAJOR < 3
+  if (FIPS_mode()) {
+    OPENSSL_init();
+  }
+#endif
+  V8::SetEntropySource(boxednode::EntropySource);
+#endif
+}
+
 void InitializeOncePerProcess() {
   atexit(ResetStdio);
   PlatformInit();
+  InitializeOpenSSL();
 }
 
 void TearDownOncePerProcess() {
@@ -562,3 +658,5 @@ void TearDownOncePerProcess() {
 }
 
 }  // namespace boxednode
+
+#endif  // USE_OWN_LEGACY_PROCESS_INITIALIZATION
