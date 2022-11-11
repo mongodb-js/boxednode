@@ -16,6 +16,8 @@
 #include <openssl/rand.h>
 #endif
 
+static uint64_t process_start_time = uv_hrtime();
+
 using namespace node;
 using namespace v8;
 
@@ -125,9 +127,13 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // instead of the internal-only `require` function.
     MaybeLocal<Value> loadenv_ret = node::LoadEnvironment(
         env.get(),
+        ("globalThis.mongoshStartupTiming = {"
+        " processStartTime: " + std::to_string(process_start_time) + "n,\n"
+        " nodeStartup: process.hrtime.bigint()\n"
+        "};\n"
         "const path = require('path');\n"
         "if (process.argv[2] === '--') process.argv.splice(2, 1);\n"
-        "require(" REPLACE_WITH_ENTRY_POINT ")");
+        "require(" REPLACE_WITH_ENTRY_POINT ")").c_str());
 
     if (loadenv_ret.IsEmpty())  // There has been a JS exception.
       return 1;

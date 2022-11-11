@@ -7,7 +7,9 @@ const {
   requireMappings,
   enableBindingsPatch
 } = REPLACE_WITH_BOXEDNODE_CONFIG;
+mongoshStartupTiming.startReadingMainSource = process.hrtime.bigint();
 const src = require(srcMod);
+mongoshStartupTiming.finishReadingMainSource = process.hrtime.bigint();
 const hydatedRequireMappings =
   requireMappings.map(([re, reFlags, linked]) => [new RegExp(re, reFlags), linked]);
 
@@ -79,10 +81,13 @@ module.exports = (() => {
     path: __dirname,
     require
   };
-  vm.compileFunction(src, [
+  mongoshStartupTiming.startCompilingMainSource = process.hrtime.bigint();
+  const fn = vm.compileFunction(src, [
     '__filename', '__dirname', 'require', 'exports', 'module'
   ], {
     filename: __filename
-  })(__filename, __dirname, require, exports, module);
+  });
+  mongoshStartupTiming.finishCompilingMainSource = process.hrtime.bigint();
+  fn(__filename, __dirname, require, exports, module);
   return module.exports;
 })();
