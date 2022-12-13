@@ -1,1 +1,0 @@
-require(REPLACE_WITH_ENTRY_POINT)
