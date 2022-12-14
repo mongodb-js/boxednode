@@ -31,6 +31,9 @@ void InitializeOncePerProcess();
 void TearDownOncePerProcess();
 }
 #endif
+namespace boxednode {
+Local<String> GetBoxednodeMainScriptSource(Isolate* isolate);
+}
 
 extern "C" {
 typedef void (*register_boxednode_linked_module)(const void**, const void**);
@@ -123,14 +126,18 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // `module.createRequire()` is being used to create one that is able to
     // load files from the disk, and uses the standard CommonJS file loader
     // instead of the internal-only `require` function.
-    MaybeLocal<Value> loadenv_ret = node::LoadEnvironment(
+    Local<Value> loadenv_ret;
+    if (!node::LoadEnvironment(
         env.get(),
         "const path = require('path');\n"
         "if (process.argv[2] === '--') process.argv.splice(2, 1);\n"
-        "require(" REPLACE_WITH_ENTRY_POINT ")");
-
-    if (loadenv_ret.IsEmpty())  // There has been a JS exception.
-      return 1;
+        "return require(" REPLACE_WITH_ENTRY_POINT ")").ToLocal(&loadenv_ret)) {
+      return 1; // There has been a JS exception.
+    }
+    assert(loadenv_ret->IsFunction());
+    Local<Value> source = boxednode::GetBoxednodeMainScriptSource(isolate);
+    if (loadenv_ret.As<Function>()->Call(context, Null(isolate), 1, &source).IsEmpty())
+      return 1; // JS exception.
 
     {
       // SealHandleScope protects against handle leaks from callbacks.
@@ -660,3 +667,7 @@ void TearDownOncePerProcess() {
 }  // namespace boxednode
 
 #endif  // USE_OWN_LEGACY_PROCESS_INITIALIZATION
+
+namespace boxednode {
+REPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER
+}
