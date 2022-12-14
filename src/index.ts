@@ -1,7 +1,6 @@
 'use strict';
 import { Logger, LoggerImpl } from './logger';
 import fetch from 'node-fetch';
-import semver from 'semver';
 import tar from 'tar';
 import path from 'path';
 import zlib from 'zlib';
@@ -17,7 +16,7 @@ import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
 
 // Download and unpack a tarball containing the code for a specific Node.js version.
-async function getNodeSourceForVersion (range: string, dir: string, logger: Logger, retries = 2): Promise<[string, string]> {
+async function getNodeSourceForVersion (range: string, dir: string, logger: Logger, retries = 2): Promise<string> {
   logger.stepStarting(`Looking for Node.js version matching ${JSON.stringify(range)}`);
   const ver = (await nv(range)).pop();
   if (!ver) {
@@ -120,7 +119,7 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
 
   logger.stepCompleted();
 
-  return [version, path.join(dir, `node-${version}`)];
+  return path.join(dir, `node-${version}`);
 }
 
 // Compile a Node.js build in a given directory from source
@@ -203,17 +202,16 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     options.tmpdir = path.join(os.tmpdir(), 'boxednode', namespace);
   }
 
-  const [nodeVersion, nodeSourcePath] = await getNodeSourceForVersion(
+  const nodeSourcePath = await getNodeSourceForVersion(
     options.nodeVersionRange, options.tmpdir, logger);
 
   const requireMappings: [RegExp, string][] = [];
   const extraJSSourceFiles: string[] = [];
   const enableBindingsPatch = options.enableBindingsPatch ?? options.addons?.length > 0;
 
-  // In Node.js 12.19.0+, we use the official embedder API for stability.
-  // In Node.js 12.18.4 and below, we use the legacy _third_party_main mechanism
-  // that will be removed in future Node.js versions.
-  if (semver.gte(nodeVersion, '12.19.0')) {
+  // We use the official embedder API for stability, which is available in all
+  // supported versions of Node.js.
+  {
     const extraGypDependencies: string[] = [];
     const registerFunctions: string[] = [];
     for (const addon of (options.addons || [])) {
@@ -254,29 +252,6 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       registerFunctions.map((fn) => `${fn},`).join(''));
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
     logger.stepCompleted();
-  } else {
-    let tpmSource = await fs.readFile(
-      path.join(__dirname, '..', 'resources', 'third_party_main.js'), 'utf8');
-    tpmSource = tpmSource.replace(/\bREPLACE_WITH_ENTRY_POINT\b/g,
-      JSON.stringify(`${namespace}/${namespace}`));
-    await fs.writeFile(path.join(nodeSourcePath, 'lib', '_third_party_main.js'), tpmSource);
-    extraJSSourceFiles.push('./lib/_third_party_main.js');
-
-    // This is the 'only' hack in here: We suppress Node.js options parsing so
-    // all options end up in process.argv. For that, we remove the main call
-    // to node::ProcessGlobalArgs().
-    let nodeCCSource = await fs.readFile(
-      path.join(nodeSourcePath, 'src', 'node.cc'), 'utf8');
-    nodeCCSource = nodeCCSource.replace(
-      /ProcessGlobalArgs\((?:[^{};]|[\r\n])*?kDisallowedInEnvironment(?:[^{}]|[\r\n])*?\)/,
-      '0');
-    await fs.writeFile(path.join(nodeSourcePath, 'src', 'node.cc'), nodeCCSource);
-
-    if (options.addons && options.addons.length > 0) {
-      logger.stepStarting('Handling linked addons');
-      logger.stepFailed(
-        new Error('Addons are not supported on Node v12.x, ignoring...'));
-    }
   }
 
   logger.stepStarting('Inserting custom code into Node.js source');
