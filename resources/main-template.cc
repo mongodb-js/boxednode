@@ -19,9 +19,8 @@
 using namespace node;
 using namespace v8;
 
-// This version can potentially be lowered if/when
-// https://github.com/nodejs/node/pull/44121 is backported.
-#if !NODE_VERSION_AT_LEAST(19, 0, 0)
+// 18.11.0 is the minimum version that has https://github.com/nodejs/node/pull/44121
+#if !NODE_VERSION_AT_LEAST(18, 11, 0)
 #define USE_OWN_LEGACY_PROCESS_INITIALIZATION 1
 #endif
 
