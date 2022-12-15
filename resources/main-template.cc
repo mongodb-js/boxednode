@@ -6,6 +6,9 @@
 #include "node.h"
 #include "node_api.h"
 #include "uv.h"
+#ifdef BOXEDNODE_USE_NODE_SNAPSHOT
+#include "brotli/decode.h"
+#endif
 #if HAVE_OPENSSL
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -31,7 +34,11 @@ void TearDownOncePerProcess();
 }
 #endif
 namespace boxednode {
+#ifdef BOXEDNODE_USE_NODE_SNAPSHOT
+std::string GetBoxednodeSnapshotBlob();
+#else
 Local<String> GetBoxednodeMainScriptSource(Isolate* isolate);
+#endif
 }
 
 extern "C" {
@@ -62,7 +69,18 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
   std::shared_ptr<ArrayBufferAllocator> allocator =
       ArrayBufferAllocator::Create();
 
-#if NODE_VERSION_AT_LEAST(14, 0, 0)
+#ifdef BOXEDNODE_USE_NODE_SNAPSHOT
+  std::string snapshot_blob_str = boxednode::GetBoxednodeSnapshotBlob();
+  // TODO: fmemopen() is in POSIX but not in Windows...
+  std::shared_ptr<FILE> snapshot_blob_file {
+    fmemopen(&snapshot_blob_str[0], snapshot_blob_str.size(), "r"),
+    [](FILE* f) { fclose(f); } };
+  assert(snapshot_blob_file);
+  assert(EmbedderSnapshotData::CanUseCustomSnapshotPerIsolate());
+  node::EmbedderSnapshotData::Pointer snapshot_blob =
+    EmbedderSnapshotData::FromFile(snapshot_blob_file.get());
+  Isolate* isolate = NewIsolate(allocator, &loop, platform, snapshot_blob.get());
+#elif NODE_VERSION_AT_LEAST(14, 0, 0)
   Isolate* isolate = NewIsolate(allocator, &loop, platform);
 #else
   Isolate* isolate = NewIsolate(allocator.get(), &loop, platform);
@@ -79,12 +97,18 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // Create a node::IsolateData instance that will later be released using
     // node::FreeIsolateData().
     std::unique_ptr<IsolateData, decltype(&node::FreeIsolateData)> isolate_data(
-        node::CreateIsolateData(isolate, &loop, platform, allocator.get()),
+        node::CreateIsolateData(isolate, &loop, platform, allocator.get()
+#ifdef BOXEDNODE_USE_NODE_SNAPSHOT
+        , snapshot_blob.get()
+#endif
+        ),
         node::FreeIsolateData);
 
-    // Set up a new v8::Context.
     HandleScope handle_scope(isolate);
-    Local<Context> context = node::NewContext(isolate);
+    Local<Context> context;
+#ifndef BOXEDNODE_USE_NODE_SNAPSHOT
+    // Set up a new v8::Context.
+    context = node::NewContext(isolate);
     if (context.IsEmpty()) {
       fprintf(stderr, "%s: Failed to initialize V8 Context\n", args[0].c_str());
       return 1;
@@ -93,12 +117,19 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // The v8::Context needs to be entered when node::CreateEnvironment() and
     // node::LoadEnvironment() are being called.
     Context::Scope context_scope(context);
+#endif
 
     // Create a node::Environment instance that will later be released using
     // node::FreeEnvironment().
     std::unique_ptr<Environment, decltype(&node::FreeEnvironment)> env(
         node::CreateEnvironment(isolate_data.get(), context, args, exec_args),
         node::FreeEnvironment);
+#ifdef BOXEDNODE_USE_NODE_SNAPSHOT
+    assert(context.IsEmpty());
+    context = GetMainContext(env.get());
+    assert(!context.IsEmpty());
+    Context::Scope context_scope(context);
+#endif
 
     const void* node_mod;
     const void* napi_mod;
@@ -128,15 +159,22 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     Local<Value> loadenv_ret;
     if (!node::LoadEnvironment(
         env.get(),
+#ifdef BOXEDNODE_USE_NODE_SNAPSHOT
+        node::StartExecutionCallback{}
+#else
         "const path = require('path');\n"
         "if (process.argv[2] === '--') process.argv.splice(2, 1);\n"
-        "return require(" REPLACE_WITH_ENTRY_POINT ")").ToLocal(&loadenv_ret)) {
+        "return require(" REPLACE_WITH_ENTRY_POINT ")"
+#endif
+        ).ToLocal(&loadenv_ret)) {
       return 1; // There has been a JS exception.
     }
+#ifndef BOXEDNODE_USE_NODE_SNAPSHOT
     assert(loadenv_ret->IsFunction());
     Local<Value> source = boxednode::GetBoxednodeMainScriptSource(isolate);
     if (loadenv_ret.As<Function>()->Call(context, Null(isolate), 1, &source).IsEmpty())
       return 1; // JS exception.
+#endif
 
     {
       // SealHandleScope protects against handle leaks from callbacks.
@@ -668,5 +706,5 @@ void TearDownOncePerProcess() {
 #endif  // USE_OWN_LEGACY_PROCESS_INITIALIZATION
 
 namespace boxednode {
-REPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER
+REPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER_OR_SNAPSHOT_BLOB
 }

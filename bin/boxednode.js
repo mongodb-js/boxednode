@@ -13,7 +13,7 @@ const argv = require('yargs')
     alias: 't', type: 'string', demandOption: true, desc: 'Target executable file'
   })
   .option('node-version', {
-    alias: 'n', type: 'string', desc: 'Node.js version or semver version range or tarball file url', default: '*'
+    alias: 'n', type: 'string', desc: 'Node.js version or semver version range or .tar.gz file url', default: '*'
   })
   .option('configure-args', {
     alias: 'C', type: 'string', desc: 'Extra ./configure or vcbuild arguments, comma-separated'
@@ -26,6 +26,9 @@ const argv = require('yargs')
   })
   .option('namespace', {
     alias: 'N', type: 'string', desc: 'Module identifier for the generated binary'
+  })
+  .option('use-node-snapshot', {
+    alias: 'S', type: 'boolean', desc: 'Use experimental Node.js snapshot support'
   })
   .example('$0 -s myProject.js -t myProject.exe -n ^14.0.0',
     'Create myProject.exe from myProject.js using Node.js v14')
@@ -42,7 +45,8 @@ const argv = require('yargs')
       clean: argv.c,
       configureArgs: (argv.C || '').split(',').filter(Boolean),
       makeArgs: (argv.M || '').split(',').filter(Boolean),
-      namespace: argv.N
+      namespace: argv.N,
+      useNodeSnapshot: argv.S
     });
   } catch (err) {
     console.error(err);

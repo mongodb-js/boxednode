@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
 import { ExecutableMetadata, generateRCFile } from './executable-metadata';
-import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition } from './helpers';
+import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition, createCompressedBlobDefinition } from './helpers';
 import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
 import { fileURLToPath, URL } from 'url';
@@ -26,7 +26,8 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
   } catch { /* not a valid URL */ }
 
   if (inputIsFileUrl) {
-    logger.stepStarting(`Extracting tarball from ${range}`);
+    logger.stepStarting(`Extracting tarball from ${range} to ${dir}`);
+    await fs.mkdir(dir, { recursive: true });
     await pipeline(
       createReadStream(fileURLToPath(range)),
       zlib.createGunzip(),
@@ -40,7 +41,7 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
     if (dirsInDir.length !== 1) {
       throw new Error('Node.js tarballs should contain exactly one directory');
     }
-    return path.join(dir, dirsInDir[0]);
+    return path.join(dir, dirsInDir[0].name);
   }
 
   const ver = (await nv(range)).pop();
@@ -207,6 +208,7 @@ type CompilationOptions = {
   namespace?: string,
   addons?: AddonConfig[],
   enableBindingsPatch?: boolean,
+  useNodeSnapshot?: boolean,
   executableMetadata?: ExecutableMetadata,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
@@ -232,9 +234,43 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
 
   const requireMappings: [RegExp, string][] = [];
   const extraJSSourceFiles: string[] = [];
+  const configureArgs = [...options.configureArgs];
   const enableBindingsPatch = options.enableBindingsPatch ?? options.addons?.length > 0;
 
-  const jsMainSource = await fs.readFile(options.sourceFile, 'utf8');
+  let jsMainSource: undefined | string;
+  let snapshotBlobSource: undefined | Buffer;
+
+  if (!options.useNodeSnapshot) {
+    jsMainSource = await fs.readFile(options.sourceFile, 'utf8');
+  } else {
+    configureArgs.push(process.platform === 'win32' ? 'no-shared-roheap' : '--disable-shared-readonly-heap');
+
+    // `touch src/node_main.cc` in case we've already run boxednode in this directory,
+    // in which case extracting the tarball overwrites the file but its `mtime` will be
+    // set to a date *before* boxednode’s own previous overwrite.
+    await fs.utimes(path.join(nodeSourcePath, 'src', 'node_main.cc'), new Date(), new Date());
+
+    const plainNodeBinaryPath = await compileNode(
+      nodeSourcePath,
+      [],
+      configureArgs,
+      options.makeArgs,
+      options.env || process.env,
+      logger);
+    const snapshotBlobPath = path.join(nodeSourcePath, 'boxednode_snapshot.blob');
+    await spawnBuildCommand([
+      plainNodeBinaryPath,
+      '--snapshot-blob',
+      snapshotBlobPath,
+      '--build-snapshot',
+      path.resolve(options.sourceFile)
+    ], {
+      cwd: path.dirname(nodeSourcePath),
+      logger,
+      env: options.env || process.env
+    });
+    snapshotBlobSource = await fs.readFile(snapshotBlobPath);
+  }
 
   // We use the official embedder API for stability, which is available in all
   // supported versions of Node.js.
@@ -277,8 +313,14 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       registerFunctions.map((fn) => `void ${fn}(const void**,const void**);\n`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_DEFINE_LINKED_MODULES\b/g,
       registerFunctions.map((fn) => `${fn},`).join(''));
-    mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER\b/g,
-      createCppJsStringDefinition('GetBoxednodeMainScriptSource', jsMainSource));
+    if (options.useNodeSnapshot) {
+      mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER_OR_SNAPSHOT_BLOB\b/g,
+        await createCompressedBlobDefinition('GetBoxednodeSnapshotBlob', snapshotBlobSource));
+      mainSource = `#define BOXEDNODE_USE_NODE_SNAPSHOT 1\n${mainSource}`;
+    } else {
+      mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER_OR_SNAPSHOT_BLOB\b/g,
+        createCppJsStringDefinition('GetBoxednodeMainScriptSource', jsMainSource));
+    }
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
     logger.stepCompleted();
   }
@@ -315,7 +357,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   const binaryPath = await compileNode(
     nodeSourcePath,
     extraJSSourceFiles,
-    options.configureArgs,
+    configureArgs,
     options.makeArgs,
     options.env || process.env,
     logger);
