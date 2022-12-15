@@ -3,11 +3,9 @@ const Module = require('module');
 const vm = require('vm');
 const path = require('path');
 const {
-  srcMod,
   requireMappings,
   enableBindingsPatch
 } = REPLACE_WITH_BOXEDNODE_CONFIG;
-const src = require(srcMod);
 const hydatedRequireMappings =
   requireMappings.map(([re, reFlags, linked]) => [new RegExp(re, reFlags), linked]);
 
@@ -51,7 +49,7 @@ if (enableBindingsPatch) {
   });
 }
 
-module.exports = (() => {
+module.exports = (src) => {
   const __filename = process.execPath;
   const __dirname = path.dirname(process.execPath);
   const innerRequire = Module.createRequire(__filename);
@@ -85,4 +83,4 @@ module.exports = (() => {
     filename: __filename
   })(__filename, __dirname, require, exports, module);
   return module.exports;
-})();
+};

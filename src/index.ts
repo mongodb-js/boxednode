@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
 import { ExecutableMetadata, generateRCFile } from './executable-metadata';
-import { spawnBuildCommand, ProcessEnv, pipeline } from './helpers';
+import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition } from './helpers';
 import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
 
@@ -209,6 +209,8 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   const extraJSSourceFiles: string[] = [];
   const enableBindingsPatch = options.enableBindingsPatch ?? options.addons?.length > 0;
 
+  const jsMainSource = await fs.readFile(options.sourceFile, 'utf8');
+
   // We use the official embedder API for stability, which is available in all
   // supported versions of Node.js.
   {
@@ -250,32 +252,26 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       registerFunctions.map((fn) => `void ${fn}(const void**,const void**);\n`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_DEFINE_LINKED_MODULES\b/g,
       registerFunctions.map((fn) => `${fn},`).join(''));
+    mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER\b/g,
+      createCppJsStringDefinition('GetBoxednodeMainScriptSource', jsMainSource));
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
     logger.stepCompleted();
   }
 
   logger.stepStarting('Inserting custom code into Node.js source');
   await fs.mkdir(path.join(nodeSourcePath, 'lib', namespace), { recursive: true });
-  const source = await fs.readFile(options.sourceFile, 'utf8');
-  await fs.writeFile(
-    path.join(nodeSourcePath, 'lib', namespace, `${namespace}_src.js`),
-    `module.exports = ${JSON.stringify(source)}`);
   let entryPointTrampolineSource = await fs.readFile(
     path.join(__dirname, '..', 'resources', 'entry-point-trampoline.js'), 'utf8');
   entryPointTrampolineSource = entryPointTrampolineSource.replace(
     /\bREPLACE_WITH_BOXEDNODE_CONFIG\b/g,
     JSON.stringify({
-      srcMod: `${namespace}/${namespace}_src`,
       requireMappings: requireMappings.map(([re, linked]) => [re.source, re.flags, linked]),
       enableBindingsPatch
     }));
   await fs.writeFile(
     path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
     entryPointTrampolineSource);
-  extraJSSourceFiles.push(
-    `./lib/${namespace}/${namespace}.js`,
-    `./lib/${namespace}/${namespace}_src.js`
-  );
+  extraJSSourceFiles.push(`./lib/${namespace}/${namespace}.js`);
   logger.stepCompleted();
 
   logger.stepStarting('Storing executable metadata');

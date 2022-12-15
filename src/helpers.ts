@@ -75,3 +75,29 @@ export function npm (): string[] {
     return ['npm'];
   }
 }
+
+export function createCppJsStringDefinition (fnName: string, source: string): string {
+  const sourceAsCharCodeArray = new Uint16Array(source.length);
+  let isAllLatin1 = true;
+  for (let i = 0; i < source.length; i++) {
+    const charCode = source.charCodeAt(i);
+    sourceAsCharCodeArray[i] = charCode;
+    isAllLatin1 &&= charCode <= 0xFF;
+  }
+
+  return `
+  static const ${isAllLatin1 ? 'uint8_t' : 'uint16_t'} ${fnName}_source_[] = {
+    ${sourceAsCharCodeArray}
+  };
+  static_assert(
+    ${sourceAsCharCodeArray.length} <= v8::String::kMaxLength,
+    "main script source exceeds max string length");
+  Local<String> ${fnName}(Isolate* isolate) {
+    return v8::String::NewFrom${isAllLatin1 ? 'One' : 'Two'}Byte(
+      isolate,
+      ${fnName}_source_,
+      v8::NewStringType::kNormal,
+      ${sourceAsCharCodeArray.length}).ToLocalChecked();
+  }
+  `;
+}
