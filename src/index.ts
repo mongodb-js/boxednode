@@ -40,7 +40,7 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
     if (dirsInDir.length !== 1) {
       throw new Error('Node.js tarballs should contain exactly one directory');
     }
-    return path.join(dir, dirsInDir[0]);
+    return path.join(dir, dirsInDir[0].name);
   }
 
   const ver = (await nv(range)).pop();
