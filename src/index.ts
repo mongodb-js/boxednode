@@ -14,10 +14,35 @@ import { ExecutableMetadata, generateRCFile } from './executable-metadata';
 import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition } from './helpers';
 import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
+import { fileURLToPath, URL } from 'url';
 
 // Download and unpack a tarball containing the code for a specific Node.js version.
 async function getNodeSourceForVersion (range: string, dir: string, logger: Logger, retries = 2): Promise<string> {
   logger.stepStarting(`Looking for Node.js version matching ${JSON.stringify(range)}`);
+
+  let inputIsFileUrl = false;
+  try {
+    inputIsFileUrl = new URL(range).protocol === 'file:';
+  } catch { /* not a valid URL */ }
+
+  if (inputIsFileUrl) {
+    logger.stepStarting(`Extracting tarball from ${range}`);
+    await pipeline(
+      createReadStream(fileURLToPath(range)),
+      zlib.createGunzip(),
+      tar.x({
+        cwd: dir
+      })
+    );
+    logger.stepCompleted();
+    const filesInDir = await fs.readdir(dir, { withFileTypes: true });
+    const dirsInDir = filesInDir.filter(f => f.isDirectory());
+    if (dirsInDir.length !== 1) {
+      throw new Error('Node.js tarballs should contain exactly one directory');
+    }
+    return path.join(dir, dirsInDir[0].name);
+  }
+
   const ver = (await nv(range)).pop();
   if (!ver) {
     throw new Error(`No node version found for ${range}`);

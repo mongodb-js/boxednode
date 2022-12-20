@@ -13,7 +13,7 @@ const argv = require('yargs')
     alias: 't', type: 'string', demandOption: true, desc: 'Target executable file'
   })
   .option('node-version', {
-    alias: 'n', type: 'string', desc: 'Node.js version or semver version range', default: '*'
+    alias: 'n', type: 'string', desc: 'Node.js version or semver version range or tarball file url', default: '*'
   })
   .option('configure-args', {
     alias: 'C', type: 'string', desc: 'Extra ./configure or vcbuild arguments, comma-separated'
