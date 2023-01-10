@@ -207,6 +207,7 @@ type CompilationOptions = {
   namespace?: string,
   addons?: AddonConfig[],
   enableBindingsPatch?: boolean,
+  useLegacyDefaultUvLoop?: boolean;
   executableMetadata?: ExecutableMetadata,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
@@ -279,6 +280,9 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       registerFunctions.map((fn) => `${fn},`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER\b/g,
       createCppJsStringDefinition('GetBoxednodeMainScriptSource', jsMainSource));
+    if (options.useLegacyDefaultUvLoop) {
+      mainSource = `#define BOXEDNODE_USE_DEFAULT_UV_LOOP 1\n${mainSource}`;
+    }
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
     logger.stepCompleted();
   }

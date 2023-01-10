@@ -27,6 +27,9 @@ const argv = require('yargs')
   .option('namespace', {
     alias: 'N', type: 'string', desc: 'Module identifier for the generated binary'
   })
+  .options('use-legacy-default-uv-loop', {
+    type: 'boolean', desc: 'Use the global singleton libuv event loop rather than a separate local one'
+  })
   .example('$0 -s myProject.js -t myProject.exe -n ^14.0.0',
     'Create myProject.exe from myProject.js using Node.js v14')
   .help()
@@ -42,7 +45,8 @@ const argv = require('yargs')
       clean: argv.c,
       configureArgs: (argv.C || '').split(',').filter(Boolean),
       makeArgs: (argv.M || '').split(',').filter(Boolean),
-      namespace: argv.N
+      namespace: argv.N,
+      useLegacyDefaultUvLoop: argv.useLegacyDefaultUvLoop
     });
   } catch (err) {
     console.error(err);
