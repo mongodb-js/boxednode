@@ -24,6 +24,17 @@ using namespace v8;
 #define USE_OWN_LEGACY_PROCESS_INITIALIZATION 1
 #endif
 
+// 18.1.0 is the current minimum version that has https://github.com/nodejs/node/pull/42809,
+// which introduced crashes when using workers, and later 18.9.0 is the current
+// minimum version to contain https://github.com/nodejs/node/pull/44252, which
+// introcued crashes when using the vm module.
+// We should be able to remove this restriction again once Node.js stops relying
+// on global state for determining whether snapshots are enabled or not
+// (after https://github.com/nodejs/node/pull/45888, hopefully).
+#if NODE_VERSION_AT_LEAST(18, 1, 0)
+#define PASS_NO_NODE_SNAPSHOT_OPTION 1
+#endif
+
 #ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
 namespace boxednode {
 void InitializeOncePerProcess();
@@ -196,8 +207,12 @@ static int BoxednodeMain(std::vector<std::string> args) {
   std::vector<std::string> exec_args;
   std::vector<std::string> errors;
 
-  if (args.size() > 0)
+  if (args.size() > 0) {
     args.insert(args.begin() + 1, "--");
+#ifdef PASS_NO_NODE_SNAPSHOT_OPTION
+    args.insert(args.begin() + 1, "--no-node-snapshot");
+#endif
+  }
 
   // Parse Node.js CLI options, and print any errors that have occurred while
   // trying to parse them.

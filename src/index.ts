@@ -147,6 +147,15 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
   return path.join(dir, `node-${version}`);
 }
 
+async function getNodeVersionFromSourceDirectory (dir: string): Promise<[number, number, number]> {
+  const versionFile = await fs.readFile(path.join(dir, 'src', 'node_version.h'), 'utf8');
+
+  const major = +versionFile.match(/^#define\s+NODE_MAJOR_VERSION\s+(?<version>\d+)\s*$/m)?.groups?.version;
+  const minor = +versionFile.match(/^#define\s+NODE_MINOR_VERSION\s+(?<version>\d+)\s*$/m)?.groups?.version;
+  const patch = +versionFile.match(/^#define\s+NODE_PATCH_VERSION\s+(?<version>\d+)\s*$/m)?.groups?.version;
+  return [major, minor, patch];
+}
+
 // Compile a Node.js build in a given directory from source
 async function compileNode (
   sourcePath: string,
@@ -162,6 +171,19 @@ async function compileNode (
     logger: logger,
     env: env
   };
+
+  // Node.js 19.4.0 is currently the minimum version that has https://github.com/nodejs/node/pull/45887.
+  // We want to disable the shared-ro-heap flag since it would require
+  // all snapshots used by Node.js to be equal, something that we don't
+  // want to or need to guarantee as embedders.
+  const nodeVersion = await getNodeVersionFromSourceDirectory(sourcePath);
+  if (nodeVersion[0] > 19 || (nodeVersion[0] === 19 && nodeVersion[1] >= 4)) {
+    if (process.platform !== 'win32') {
+      buildArgs.unshift('--disable-shared-readonly-heap');
+    } else {
+      buildArgs.unshift('no-shared-roheap');
+    }
+  }
 
   if (process.platform !== 'win32') {
     const configure: string[] = ['./configure', ...buildArgs];
