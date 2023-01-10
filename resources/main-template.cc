@@ -60,23 +60,29 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
                            const std::vector<std::string>& args,
                            const std::vector<std::string>& exec_args) {
   int exit_code = 0;
+  uv_loop_t* loop;
+#ifndef BOXEDNODE_USE_DEFAULT_UV_LOOP
   // Set up a libuv event loop.
-  uv_loop_t loop;
-  int ret = uv_loop_init(&loop);
+  uv_loop_t loop_;
+  loop = &loop_;
+  int ret = uv_loop_init(loop);
   if (ret != 0) {
     fprintf(stderr, "%s: Failed to initialize loop: %s\n",
             args[0].c_str(),
             uv_err_name(ret));
     return 1;
   }
+#else
+  loop = uv_default_loop();
+#endif
 
   std::shared_ptr<ArrayBufferAllocator> allocator =
       ArrayBufferAllocator::Create();
 
 #if NODE_VERSION_AT_LEAST(14, 0, 0)
-  Isolate* isolate = NewIsolate(allocator, &loop, platform);
+  Isolate* isolate = NewIsolate(allocator, loop, platform);
 #else
-  Isolate* isolate = NewIsolate(allocator.get(), &loop, platform);
+  Isolate* isolate = NewIsolate(allocator.get(), loop, platform);
 #endif
   if (isolate == nullptr) {
     fprintf(stderr, "%s: Failed to initialize V8 Isolate\n", args[0].c_str());
@@ -90,7 +96,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // Create a node::IsolateData instance that will later be released using
     // node::FreeIsolateData().
     std::unique_ptr<IsolateData, decltype(&node::FreeIsolateData)> isolate_data(
-        node::CreateIsolateData(isolate, &loop, platform, allocator.get()),
+        node::CreateIsolateData(isolate, loop, platform, allocator.get()),
         node::FreeIsolateData);
 
     // Set up a new v8::Context.
@@ -154,7 +160,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
       SealHandleScope seal(isolate);
       bool more;
       do {
-        uv_run(&loop, UV_RUN_DEFAULT);
+        uv_run(loop, UV_RUN_DEFAULT);
 
         // V8 tasks on background threads may end up scheduling new tasks in the
         // foreground, which in turn can keep the event loop going. For example,
@@ -162,7 +168,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
         platform->DrainTasks(isolate);
 
         // If there are new tasks, continue.
-        more = uv_loop_alive(&loop);
+        more = uv_loop_alive(loop);
         if (more) continue;
 
         // node::EmitBeforeExit() is used to emit the 'beforeExit' event on
@@ -171,7 +177,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
 
         // 'beforeExit' can also schedule new work that keeps the event loop
         // running.
-        more = uv_loop_alive(&loop);
+        more = uv_loop_alive(loop);
       } while (more == true);
     }
 
@@ -196,9 +202,11 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
 
   // Wait until the platform has cleaned up all relevant resources.
   while (!platform_finished)
-    uv_run(&loop, UV_RUN_ONCE);
-  int err = uv_loop_close(&loop);
+    uv_run(loop, UV_RUN_ONCE);
+#ifndef BOXEDNODE_USE_DEFAULT_UV_LOOP
+  int err = uv_loop_close(loop);
   assert(err == 0);
+#endif
 
   return exit_code;
 }
