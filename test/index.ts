@@ -61,6 +61,24 @@ describe('basic functionality', () => {
         assert.strictEqual(stdout, 'true\n');
       }
 
+      {
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), ['require("vm").runInNewContext("21*2")'],
+          { encoding: 'utf8' });
+        assert.strictEqual(stdout, '42\n');
+      }
+
+      {
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), [
+            'new (require("worker_threads").Worker)' +
+              '("require(`worker_threads`).parentPort.postMessage(21*2)", {eval:true})' +
+              '.once("message", console.log);0'
+          ],
+          { encoding: 'utf8' });
+        assert.strictEqual(stdout, '0\n42\n');
+      }
+
       if (process.platform !== 'win32') {
         const proc = childProcess.spawn(
           path.resolve(__dirname, `resources/example${exeSuffix}`),
