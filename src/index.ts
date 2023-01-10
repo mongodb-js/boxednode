@@ -181,7 +181,7 @@ async function compileNode (
     if (process.platform !== 'win32') {
       buildArgs.unshift('--disable-shared-readonly-heap');
     } else {
-      buildArgs.unshift('no_shared_roheap');
+      buildArgs.unshift('no-shared-roheap');
     }
   }
 
