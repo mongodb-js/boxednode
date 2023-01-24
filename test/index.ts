@@ -70,6 +70,15 @@ describe('basic functionality', () => {
 
       {
         const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), ['JSON.stringify(process.boxednode)'],
+          { encoding: 'utf8' });
+        const parsed = JSON.parse(stdout);
+        assert.strictEqual(parsed.hasCodeCache, false);
+        assert([false, undefined].includes(parsed.rejectedCodeCache));
+      }
+
+      {
+        const { stdout } = await execFile(
           path.resolve(__dirname, `resources/example${exeSuffix}`), [
             'new (require("worker_threads").Worker)' +
               '("require(`worker_threads`).parentPort.postMessage(21*2)", {eval:true})' +
@@ -165,6 +174,32 @@ describe('basic functionality', () => {
       }
 
       throw new Error('unreachable');
+    });
+
+    it('works with code caching support (shard 4)', async function () {
+      this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      await compileJSFileAsBinary({
+        nodeVersionRange: version,
+        sourceFile: path.resolve(__dirname, 'resources/example.js'),
+        targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`),
+        useCodeCache: true
+      });
+
+      {
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), [],
+          { encoding: 'utf8' });
+        assert.strictEqual(stdout, 'Hello world!\n');
+      }
+
+      {
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), ['JSON.stringify(process.boxednode)'],
+          { encoding: 'utf8' });
+        const parsed = JSON.parse(stdout);
+        assert.strictEqual(parsed.hasCodeCache, true);
+        assert([false, undefined].includes(parsed.rejectedCodeCache));
+      }
     });
   });
 });

@@ -6,6 +6,7 @@
 #include "node.h"
 #include "node_api.h"
 #include "uv.h"
+#include "brotli/decode.h"
 #if HAVE_OPENSSL
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -43,6 +44,7 @@ void TearDownOncePerProcess();
 #endif
 namespace boxednode {
 Local<String> GetBoxednodeMainScriptSource(Isolate* isolate);
+Local<Uint8Array> GetBoxednodeCodeCacheBuffer(Isolate* isolate);
 }
 
 extern "C" {
@@ -151,8 +153,12 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
       return 1; // There has been a JS exception.
     }
     assert(loadenv_ret->IsFunction());
-    Local<Value> source = boxednode::GetBoxednodeMainScriptSource(isolate);
-    if (loadenv_ret.As<Function>()->Call(context, Null(isolate), 1, &source).IsEmpty())
+    Local<Value> trampoline_args[] = {
+      boxednode::GetBoxednodeMainScriptSource(isolate),
+      String::NewFromUtf8Literal(isolate, BOXEDNODE_CODE_CACHE_MODE),
+      boxednode::GetBoxednodeCodeCacheBuffer(isolate),
+    };
+    if (loadenv_ret.As<Function>()->Call(context, Null(isolate), sizeof(trampoline_args)/sizeof(trampoline_args[0]), trampoline_args).IsEmpty())
       return 1; // JS exception.
 
     {

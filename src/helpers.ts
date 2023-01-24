@@ -5,6 +5,7 @@ import childProcess from 'child_process';
 import { promisify } from 'util';
 import tar from 'tar';
 import stream from 'stream';
+import zlib from 'zlib';
 import { once } from 'events';
 
 export const pipeline = promisify(stream.pipeline);
@@ -98,6 +99,54 @@ export function createCppJsStringDefinition (fnName: string, source: string): st
       ${fnName}_source_,
       v8::NewStringType::kNormal,
       ${sourceAsCharCodeArray.length}).ToLocalChecked();
+  }
+  `;
+}
+
+export async function createCompressedBlobDefinition (fnName: string, source: Uint8Array): Promise<string> {
+  const compressed = await promisify(zlib.brotliCompress)(source, {
+    params: {
+      [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
+      [zlib.constants.BROTLI_PARAM_SIZE_HINT]: source.length
+    }
+  });
+  return `
+  static const uint8_t ${fnName}_source_[] = {
+    ${Uint8Array.prototype.toString.call(compressed)}
+  };
+
+  std::string ${fnName}() {
+    ${source.length === 0 ? 'return {};' : `
+    size_t decoded_size = ${source.length};
+    std::string dst(decoded_size, 0);
+    const auto result = BrotliDecoderDecompress(
+      ${compressed.length},
+      ${fnName}_source_,
+      &decoded_size,
+      reinterpret_cast<uint8_t*>(&dst[0]));
+    assert(result == BROTLI_DECODER_RESULT_SUCCESS);
+    assert(decoded_size == ${source.length});
+    return dst;`}
+  }
+
+  std::shared_ptr<v8::BackingStore> ${fnName}BackingStore() {
+    std::string* str = new std::string(std::move(${fnName}()));
+    return v8::SharedArrayBuffer::NewBackingStore(
+      &str->front(),
+      str->size(),
+      [](void*, size_t, void* deleter_data) {
+        delete static_cast<std::string*>(deleter_data);
+      },
+      static_cast<void*>(str));
+  }
+
+  v8::Local<v8::Uint8Array> ${fnName}Buffer(v8::Isolate* isolate) {
+    ${source.length === 0 ? `
+    auto array_buffer = v8::SharedArrayBuffer::New(isolate, 0);
+    ` : `
+    auto array_buffer = v8::SharedArrayBuffer::New(isolate, ${fnName}BackingStore());
+    `}
+    return v8::Uint8Array::New(array_buffer, 0, array_buffer->ByteLength());
   }
   `;
 }

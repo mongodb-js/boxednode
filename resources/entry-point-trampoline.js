@@ -2,6 +2,7 @@
 const Module = require('module');
 const vm = require('vm');
 const path = require('path');
+const assert = require('assert');
 const {
   requireMappings,
   enableBindingsPatch
@@ -49,7 +50,7 @@ if (enableBindingsPatch) {
   });
 }
 
-module.exports = (src) => {
+module.exports = (src, codeCacheMode, codeCache) => {
   const __filename = process.execPath;
   const __dirname = path.dirname(process.execPath);
   const innerRequire = Module.createRequire(__filename);
@@ -68,6 +69,7 @@ module.exports = (src) => {
   Object.setPrototypeOf(require, Object.getPrototypeOf(innerRequire));
 
   process.argv.unshift(__filename);
+  process.boxednode = {};
 
   const module = {
     exports,
@@ -77,10 +79,23 @@ module.exports = (src) => {
     path: __dirname,
     require
   };
-  vm.compileFunction(src, [
+  const mainFunction = vm.compileFunction(src, [
     '__filename', '__dirname', 'require', 'exports', 'module'
   ], {
-    filename: __filename
-  })(__filename, __dirname, require, exports, module);
+    filename: __filename,
+    cachedData: codeCache.length > 0 ? codeCache : undefined,
+    produceCachedData: codeCacheMode === 'generate'
+  });
+  if (codeCacheMode === 'generate') {
+    assert.strictEqual(mainFunction.cachedDataProduced, true);
+    process.stdout.write(mainFunction.cachedData);
+    return;
+  }
+
+  process.boxednode.hasCodeCache = codeCache.length > 0;
+  // https://github.com/nodejs/node/pull/46320
+  process.boxednode.rejectedCodeCache = mainFunction.cachedDataRejected;
+
+  mainFunction(__filename, __dirname, require, exports, module);
   return module.exports;
 };
