@@ -158,8 +158,13 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
       String::NewFromUtf8Literal(isolate, BOXEDNODE_CODE_CACHE_MODE),
       boxednode::GetBoxednodeCodeCacheBuffer(isolate),
     };
-    if (loadenv_ret.As<Function>()->Call(context, Null(isolate), sizeof(trampoline_args)/sizeof(trampoline_args[0]), trampoline_args).IsEmpty())
+    if (loadenv_ret.As<Function>()->Call(
+        context,
+        Null(isolate),
+        sizeof(trampoline_args) / sizeof(trampoline_args[0]),
+        trampoline_args).IsEmpty()) {
       return 1; // JS exception.
+    }
 
     {
       // SealHandleScope protects against handle leaks from callbacks.
