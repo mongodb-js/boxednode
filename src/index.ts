@@ -203,6 +203,13 @@ async function compileNode (
 
     return path.join(sourcePath, 'out', 'Release', 'node');
   } else {
+    // On Windows, running vcbuild multiple times may result in errors
+    // when the source data changes in between runs.
+    await fs.rm(path.join(sourcePath, 'out', 'Release', 'obj', 'node'), {
+      recursive: true,
+      force: true
+    });
+
     // These defaults got things to work locally. We only include them if no
     // conflicting arguments have been passed manually.
     const vcbuildArgs: string[] = [...buildArgs, ...makeArgs, 'projgen'];
