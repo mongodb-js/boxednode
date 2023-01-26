@@ -205,7 +205,7 @@ async function compileNode (
   } else {
     // On Windows, running vcbuild multiple times may result in errors
     // when the source data changes in between runs.
-    await fs.rm(path.join(sourcePath, 'out', 'Release', 'obj', 'node'), {
+    await fs.rm(path.join(sourcePath, 'out', 'Release'), {
       recursive: true,
       force: true
     });
