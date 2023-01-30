@@ -377,7 +377,6 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     });
     logger.stepStarting('Running code cache generation');
     const codeCacheResult = await promisify(execFile)(binaryPath, { encoding: 'buffer' });
-    console.log({ codeCacheResult });
     if (codeCacheResult.stdout.length === 0) {
       throw new Error('Empty code cache result');
     }
