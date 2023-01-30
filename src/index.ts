@@ -11,10 +11,11 @@ import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
 import { ExecutableMetadata, generateRCFile } from './executable-metadata';
-import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition } from './helpers';
+import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition, createCompressedBlobDefinition } from './helpers';
 import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
 import { fileURLToPath, URL } from 'url';
+import { execFile } from 'child_process';
 
 // Download and unpack a tarball containing the code for a specific Node.js version.
 async function getNodeSourceForVersion (range: string, dir: string, logger: Logger, retries = 2): Promise<string> {
@@ -26,7 +27,8 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
   } catch { /* not a valid URL */ }
 
   if (inputIsFileUrl) {
-    logger.stepStarting(`Extracting tarball from ${range}`);
+    logger.stepStarting(`Extracting tarball from ${range} to ${dir}`);
+    await fs.mkdir(dir, { recursive: true });
     await pipeline(
       createReadStream(fileURLToPath(range)),
       zlib.createGunzip(),
@@ -179,9 +181,9 @@ async function compileNode (
   const nodeVersion = await getNodeVersionFromSourceDirectory(sourcePath);
   if (nodeVersion[0] > 19 || (nodeVersion[0] === 19 && nodeVersion[1] >= 4)) {
     if (process.platform !== 'win32') {
-      buildArgs.unshift('--disable-shared-readonly-heap');
+      buildArgs = ['--disable-shared-readonly-heap', ...buildArgs];
     } else {
-      buildArgs.unshift('no-shared-roheap');
+      buildArgs = ['no-shared-roheap', ...buildArgs];
     }
   }
 
@@ -201,6 +203,13 @@ async function compileNode (
 
     return path.join(sourcePath, 'out', 'Release', 'node');
   } else {
+    // On Windows, running vcbuild multiple times may result in errors
+    // when the source data changes in between runs.
+    await fs.rm(path.join(sourcePath, 'out', 'Release'), {
+      recursive: true,
+      force: true
+    });
+
     // These defaults got things to work locally. We only include them if no
     // conflicting arguments have been passed manually.
     const vcbuildArgs: string[] = [...buildArgs, ...makeArgs, 'projgen'];
@@ -230,6 +239,7 @@ type CompilationOptions = {
   addons?: AddonConfig[],
   enableBindingsPatch?: boolean,
   useLegacyDefaultUvLoop?: boolean;
+  useCodeCache?: boolean,
   executableMetadata?: ExecutableMetadata,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
@@ -258,12 +268,12 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   const enableBindingsPatch = options.enableBindingsPatch ?? options.addons?.length > 0;
 
   const jsMainSource = await fs.readFile(options.sourceFile, 'utf8');
+  const registerFunctions: string[] = [];
 
   // We use the official embedder API for stability, which is available in all
   // supported versions of Node.js.
   {
     const extraGypDependencies: string[] = [];
-    const registerFunctions: string[] = [];
     for (const addon of (options.addons || [])) {
       const addonResult = await modifyAddonGyp(
         addon, nodeSourcePath, options.env || process.env, logger);
@@ -289,23 +299,6 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       );
       await fs.writeFile(path.join(nodeSourcePath, 'src', header), source);
     }
-    logger.stepCompleted();
-
-    logger.stepStarting('Handling main file source');
-    let mainSource = await fs.readFile(
-      path.join(__dirname, '..', 'resources', 'main-template.cc'), 'utf8');
-    mainSource = mainSource.replace(/\bREPLACE_WITH_ENTRY_POINT\b/g,
-      JSON.stringify(JSON.stringify(`${namespace}/${namespace}`)));
-    mainSource = mainSource.replace(/\bREPLACE_DECLARE_LINKED_MODULES\b/g,
-      registerFunctions.map((fn) => `void ${fn}(const void**,const void**);\n`).join(''));
-    mainSource = mainSource.replace(/\bREPLACE_DEFINE_LINKED_MODULES\b/g,
-      registerFunctions.map((fn) => `${fn},`).join(''));
-    mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER\b/g,
-      createCppJsStringDefinition('GetBoxednodeMainScriptSource', jsMainSource));
-    if (options.useLegacyDefaultUvLoop) {
-      mainSource = `#define BOXEDNODE_USE_DEFAULT_UV_LOOP 1\n${mainSource}`;
-    }
-    await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
     logger.stepCompleted();
   }
 
@@ -338,13 +331,61 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     logger.stepCompleted();
   }
 
-  const binaryPath = await compileNode(
-    nodeSourcePath,
-    extraJSSourceFiles,
-    options.configureArgs,
-    options.makeArgs,
-    options.env || process.env,
-    logger);
+  async function writeMainFileAndCompile ({ codeCacheBlob, codeCacheMode }: {
+    codeCacheBlob: Uint8Array,
+    codeCacheMode: 'ignore' | 'generate' | 'consume'
+  }): Promise<string> {
+    logger.stepStarting('Handling main file source');
+    let mainSource = await fs.readFile(
+      path.join(__dirname, '..', 'resources', 'main-template.cc'), 'utf8');
+    mainSource = mainSource.replace(/\bREPLACE_WITH_ENTRY_POINT\b/g,
+      JSON.stringify(JSON.stringify(`${namespace}/${namespace}`)));
+    mainSource = mainSource.replace(/\bREPLACE_DECLARE_LINKED_MODULES\b/g,
+      registerFunctions.map((fn) => `void ${fn}(const void**,const void**);\n`).join(''));
+    mainSource = mainSource.replace(/\bREPLACE_DEFINE_LINKED_MODULES\b/g,
+      registerFunctions.map((fn) => `${fn},`).join(''));
+    mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER\b/g,
+      createCppJsStringDefinition('GetBoxednodeMainScriptSource', jsMainSource) + '\n' +
+      await createCompressedBlobDefinition('GetBoxednodeCodeCache', codeCacheBlob));
+    mainSource = mainSource.replace(/\bBOXEDNODE_CODE_CACHE_MODE\b/g,
+      JSON.stringify(codeCacheMode));
+    if (options.useLegacyDefaultUvLoop) {
+      mainSource = `#define BOXEDNODE_USE_DEFAULT_UV_LOOP 1\n${mainSource}`;
+    }
+    await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
+    logger.stepCompleted();
+
+    return await compileNode(
+      nodeSourcePath,
+      extraJSSourceFiles,
+      options.configureArgs,
+      options.makeArgs,
+      options.env || process.env,
+      logger);
+  }
+
+  let binaryPath: string;
+  if (!options.useCodeCache) {
+    binaryPath = await writeMainFileAndCompile({
+      codeCacheBlob: new Uint8Array(0),
+      codeCacheMode: 'ignore'
+    });
+  } else {
+    binaryPath = await writeMainFileAndCompile({
+      codeCacheBlob: new Uint8Array(0),
+      codeCacheMode: 'generate'
+    });
+    logger.stepStarting('Running code cache generation');
+    const codeCacheResult = await promisify(execFile)(binaryPath, { encoding: 'buffer' });
+    if (codeCacheResult.stdout.length === 0) {
+      throw new Error('Empty code cache result');
+    }
+    logger.stepCompleted();
+    binaryPath = await writeMainFileAndCompile({
+      codeCacheBlob: codeCacheResult.stdout,
+      codeCacheMode: 'consume'
+    });
+  }
 
   logger.stepStarting(`Moving resulting binary to ${options.targetFile}`);
   await fs.mkdir(path.dirname(options.targetFile), { recursive: true });
