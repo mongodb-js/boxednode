@@ -25,6 +25,13 @@ using namespace v8;
 #define USE_OWN_LEGACY_PROCESS_INITIALIZATION 1
 #endif
 
+// 20.0.0 will have https://github.com/nodejs/node/pull/45888, possibly the PR
+// will be backported to older versions but for now this is the one where we
+// can be sure of its presence.
+#if NODE_VERSION_AT_LEAST(20, 0, 0)
+#define NODE_VERSION_SUPPORTS_EMBEDDER_SNAPSHOT 1
+#endif
+
 // 18.1.0 is the current minimum version that has https://github.com/nodejs/node/pull/42809,
 // which introduced crashes when using workers, and later 18.9.0 is the current
 // minimum version to contain https://github.com/nodejs/node/pull/44252, which
@@ -32,7 +39,7 @@ using namespace v8;
 // We should be able to remove this restriction again once Node.js stops relying
 // on global state for determining whether snapshots are enabled or not
 // (after https://github.com/nodejs/node/pull/45888, hopefully).
-#if NODE_VERSION_AT_LEAST(18, 1, 0)
+#if NODE_VERSION_AT_LEAST(18, 1, 0) && !defined(NODE_VERSION_SUPPORTS_EMBEDDER_SNAPSHOT)
 #define PASS_NO_NODE_SNAPSHOT_OPTION 1
 #endif
 
@@ -45,6 +52,7 @@ void TearDownOncePerProcess();
 namespace boxednode {
 Local<String> GetBoxednodeMainScriptSource(Isolate* isolate);
 Local<Uint8Array> GetBoxednodeCodeCacheBuffer(Isolate* isolate);
+std::vector<char> GetBoxednodeSnapshotBlobVector();
 }
 
 extern "C" {
@@ -53,11 +61,86 @@ typedef void (*register_boxednode_linked_module)(const void**, const void**);
 REPLACE_DECLARE_LINKED_MODULES
 }
 
+#if __cplusplus >= 201703L
+[[maybe_unused]]
+#endif
 static register_boxednode_linked_module boxednode_linked_modules[] = {
   REPLACE_DEFINE_LINKED_MODULES
   nullptr  // Make sure the array is not empty, for MSVC
 };
 
+static MaybeLocal<Value> LoadBoxednodeEnvironment(Local<Context> context) {
+  Environment* env = GetCurrentEnvironment(context);
+  return LoadEnvironment(env,
+#ifdef BOXEDNODE_CONSUME_SNAPSHOT
+        node::StartExecutionCallback{}
+#else
+        [&](const StartExecutionCallbackInfo& info) -> MaybeLocal<Value> {
+          Isolate* isolate = context->GetIsolate();
+          HandleScope handle_scope(isolate);
+          Local<Value> entrypoint_name = String::NewFromUtf8(
+              isolate,
+              REPLACE_WITH_ENTRY_POINT)
+              .ToLocalChecked();
+          Local<Value> entrypoint_ret;
+          if (!info.native_require->Call(
+              context,
+              Null(isolate),
+              1,
+              &entrypoint_name
+            ).ToLocal(&entrypoint_ret)) {
+            return {}; // JS exception.
+          }
+          assert(entrypoint_ret->IsFunction());
+          Local<Value> trampoline_args[] = {
+            boxednode::GetBoxednodeMainScriptSource(isolate),
+            String::NewFromUtf8Literal(isolate, BOXEDNODE_CODE_CACHE_MODE),
+            boxednode::GetBoxednodeCodeCacheBuffer(isolate),
+          };
+          if (entrypoint_ret.As<Function>()->Call(
+              context,
+              Null(isolate),
+              sizeof(trampoline_args) / sizeof(trampoline_args[0]),
+              trampoline_args).IsEmpty()) {
+            return {}; // JS exception.
+          }
+          return Null(isolate);
+      }
+#endif
+    );
+}
+
+#ifdef BOXEDNODE_GENERATE_SNAPSHOT
+static int RunNodeInstance(MultiIsolatePlatform* platform,
+                           const std::vector<std::string>& args,
+                           const std::vector<std::string>& exec_args) {
+  int exit_code = 0;
+  std::vector<std::string> errors;
+  std::unique_ptr<CommonEnvironmentSetup> setup =
+      CommonEnvironmentSetup::CreateForSnapshotting(platform, &errors, args, exec_args);
+
+  Isolate* isolate = setup->isolate();
+
+  {
+    Locker locker(isolate);
+    Isolate::Scope isolate_scope(isolate);
+
+    HandleScope handle_scope(isolate);
+    Local<Context> context = setup->context();
+    Context::Scope context_scope(context);
+    if (LoadBoxednodeEnvironment(context).IsEmpty())
+      return 1;
+    exit_code = SpinEventLoop(setup->env()).FromMaybe(1);
+  }
+
+  {
+    FILE* fp = fopen("intermediate.out", "w");
+    setup->CreateSnapshot()->ToFile(fp);
+    fclose(fp);
+  }
+  return exit_code;
+}
+#else // BOXEDNODE_GENERATE_SNAPSHOT
 static int RunNodeInstance(MultiIsolatePlatform* platform,
                            const std::vector<std::string>& args,
                            const std::vector<std::string>& exec_args) {
@@ -81,7 +164,13 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
   std::shared_ptr<ArrayBufferAllocator> allocator =
       ArrayBufferAllocator::Create();
 
-#if NODE_VERSION_AT_LEAST(14, 0, 0)
+#ifdef BOXEDNODE_CONSUME_SNAPSHOT
+  std::vector<char> snapshot_blob_vec = boxednode::GetBoxednodeSnapshotBlobVector();
+  assert(EmbedderSnapshotData::CanUseCustomSnapshotPerIsolate());
+  node::EmbedderSnapshotData::Pointer snapshot_blob =
+    EmbedderSnapshotData::FromBlob(snapshot_blob_vec);
+  Isolate* isolate = NewIsolate(allocator, loop, platform, snapshot_blob.get());
+#elif NODE_VERSION_AT_LEAST(14, 0, 0)
   Isolate* isolate = NewIsolate(allocator, loop, platform);
 #else
   Isolate* isolate = NewIsolate(allocator.get(), loop, platform);
@@ -98,12 +187,19 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // Create a node::IsolateData instance that will later be released using
     // node::FreeIsolateData().
     std::unique_ptr<IsolateData, decltype(&node::FreeIsolateData)> isolate_data(
-        node::CreateIsolateData(isolate, loop, platform, allocator.get()),
+        node::CreateIsolateData(isolate, loop, platform, allocator.get()
+#ifdef BOXEDNODE_CONSUME_SNAPSHOT
+        , snapshot_blob.get()
+#endif
+        ),
         node::FreeIsolateData);
 
-    // Set up a new v8::Context.
     HandleScope handle_scope(isolate);
-    Local<Context> context = node::NewContext(isolate);
+    Local<Context> context;
+#ifndef BOXEDNODE_CONSUME_SNAPSHOT
+    // Set up a new v8::Context.
+    context = node::NewContext(isolate);
+
     if (context.IsEmpty()) {
       fprintf(stderr, "%s: Failed to initialize V8 Context\n", args[0].c_str());
       return 1;
@@ -112,12 +208,20 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // The v8::Context needs to be entered when node::CreateEnvironment() and
     // node::LoadEnvironment() are being called.
     Context::Scope context_scope(context);
+#endif
 
     // Create a node::Environment instance that will later be released using
     // node::FreeEnvironment().
     std::unique_ptr<Environment, decltype(&node::FreeEnvironment)> env(
         node::CreateEnvironment(isolate_data.get(), context, args, exec_args),
         node::FreeEnvironment);
+#ifdef BOXEDNODE_CONSUME_SNAPSHOT
+    assert(context.IsEmpty());
+    context = GetMainContext(env.get());
+    assert(!context.IsEmpty());
+    Context::Scope context_scope(context);
+#endif
+    assert(isolate->InContext());
 
     const void* node_mod;
     const void* napi_mod;
@@ -144,26 +248,8 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // `module.createRequire()` is being used to create one that is able to
     // load files from the disk, and uses the standard CommonJS file loader
     // instead of the internal-only `require` function.
-    Local<Value> loadenv_ret;
-    if (!node::LoadEnvironment(
-        env.get(),
-        "const path = require('path');\n"
-        "if (process.argv[2] === '--') process.argv.splice(2, 1);\n"
-        "return require(" REPLACE_WITH_ENTRY_POINT ")").ToLocal(&loadenv_ret)) {
+    if (LoadBoxednodeEnvironment(context).IsEmpty()) {
       return 1; // There has been a JS exception.
-    }
-    assert(loadenv_ret->IsFunction());
-    Local<Value> trampoline_args[] = {
-      boxednode::GetBoxednodeMainScriptSource(isolate),
-      String::NewFromUtf8Literal(isolate, BOXEDNODE_CODE_CACHE_MODE),
-      boxednode::GetBoxednodeCodeCacheBuffer(isolate),
-    };
-    if (loadenv_ret.As<Function>()->Call(
-        context,
-        Null(isolate),
-        sizeof(trampoline_args) / sizeof(trampoline_args[0]),
-        trampoline_args).IsEmpty()) {
-      return 1; // JS exception.
     }
 
     {
@@ -221,13 +307,14 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
 
   return exit_code;
 }
+#endif // BOXEDNODE_GENERATE_SNAPSHOT
 
 static int BoxednodeMain(std::vector<std::string> args) {
   std::vector<std::string> exec_args;
   std::vector<std::string> errors;
 
   if (args.size() > 0) {
-    args.insert(args.begin() + 1, "--");
+      args.insert(args.begin() + 1, "--");
 #ifdef PASS_NO_NODE_SNAPSHOT_OPTION
     args.insert(args.begin() + 1, "--no-node-snapshot");
 #endif
@@ -258,6 +345,12 @@ static int BoxednodeMain(std::vector<std::string> args) {
   }
   args = result->args();
   exec_args = result->exec_args();
+#endif
+
+#ifdef BOXEDNODE_CONSUME_SNAPSHOT
+  if (args.size() > 0) {
+    args.insert(args.begin() + 1, "--boxednode-snapshot-argv-fixup");
+  }
 #endif
 
   // Create a v8::Platform instance. `MultiIsolatePlatform::Create()` is a way

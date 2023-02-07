@@ -201,5 +201,26 @@ describe('basic functionality', () => {
         assert([false, undefined].includes(parsed.rejectedCodeCache));
       }
     });
+
+    it('works with snapshot support (shard 5)', async function () {
+      this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      await compileJSFileAsBinary({
+        nodeVersionRange: 'v20.0.0-nightly202302078e6e215481', // TODO: Update to real version
+        sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
+        targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
+        useNodeSnapshot: true
+      });
+
+      {
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`), ['a', 'b', 'c'],
+          { encoding: 'utf8' });
+        const { currentArgv, originalArgv } = JSON.parse(stdout);
+        assert(currentArgv[0].includes('snapshot-echo-args'));
+        assert(currentArgv[1].includes('snapshot-echo-args'));
+        assert.deepStrictEqual(currentArgv.slice(2), ['a', 'b', 'c']);
+        assert.strictEqual(originalArgv.length, 2); // [execPath, execPath]
+      }
+    });
   });
 });

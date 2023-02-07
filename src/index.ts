@@ -45,13 +45,21 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
     return path.join(dir, dirsInDir[0].name);
   }
 
-  const ver = (await nv(range)).pop();
-  if (!ver) {
-    throw new Error(`No node version found for ${range}`);
-  }
-  const version = `v${ver.version}`;
+  let releaseBaseUrl: string;
+  let version: string;
+  if (range.match(/-nightly\d+/)) {
+    version = range.startsWith('v') ? range : `v${range}`;
+    releaseBaseUrl = `https://nodejs.org/download/nightly/${version}`;
+  } else {
+    const ver = (await nv(range)).pop();
+    if (!ver) {
+      throw new Error(`No node version found for ${range}`);
+    }
+    version = `v${ver.version}`;
 
-  const releaseBaseUrl = `https://nodejs.org/download/release/${version}`;
+    releaseBaseUrl = `https://nodejs.org/download/release/${version}`;
+  }
+
   const tarballName = `node-${version}.tar.gz`;
   const cachedTarballPath = path.join(dir, tarballName);
 
@@ -240,6 +248,7 @@ type CompilationOptions = {
   enableBindingsPatch?: boolean,
   useLegacyDefaultUvLoop?: boolean;
   useCodeCache?: boolean,
+  useNodeSnapshot?: boolean,
   executableMetadata?: ExecutableMetadata,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
@@ -331,26 +340,40 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     logger.stepCompleted();
   }
 
-  async function writeMainFileAndCompile ({ codeCacheBlob, codeCacheMode }: {
-    codeCacheBlob: Uint8Array,
-    codeCacheMode: 'ignore' | 'generate' | 'consume'
-  }): Promise<string> {
+  async function writeMainFileAndCompile ({
+    codeCacheBlob = new Uint8Array(0),
+    codeCacheMode = 'ignore',
+    snapshotBlob = new Uint8Array(0),
+    snapshotMode = 'ignore'
+  }: {
+    codeCacheBlob?: Uint8Array,
+    codeCacheMode?: 'ignore' | 'generate' | 'consume',
+    snapshotBlob?: Uint8Array,
+    snapshotMode?: 'ignore' | 'generate' | 'consume'
+  } = {}): Promise<string> {
     logger.stepStarting('Handling main file source');
     let mainSource = await fs.readFile(
       path.join(__dirname, '..', 'resources', 'main-template.cc'), 'utf8');
     mainSource = mainSource.replace(/\bREPLACE_WITH_ENTRY_POINT\b/g,
-      JSON.stringify(JSON.stringify(`${namespace}/${namespace}`)));
+      JSON.stringify(`${namespace}/${namespace}`));
     mainSource = mainSource.replace(/\bREPLACE_DECLARE_LINKED_MODULES\b/g,
       registerFunctions.map((fn) => `void ${fn}(const void**,const void**);\n`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_DEFINE_LINKED_MODULES\b/g,
       registerFunctions.map((fn) => `${fn},`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER\b/g,
-      createCppJsStringDefinition('GetBoxednodeMainScriptSource', jsMainSource) + '\n' +
-      await createCompressedBlobDefinition('GetBoxednodeCodeCache', codeCacheBlob));
+      createCppJsStringDefinition('GetBoxednodeMainScriptSource', snapshotMode !== 'consume' ? jsMainSource : '') + '\n' +
+      await createCompressedBlobDefinition('GetBoxednodeCodeCache', codeCacheBlob) + '\n' +
+      await createCompressedBlobDefinition('GetBoxednodeSnapshotBlob', snapshotBlob));
     mainSource = mainSource.replace(/\bBOXEDNODE_CODE_CACHE_MODE\b/g,
       JSON.stringify(codeCacheMode));
     if (options.useLegacyDefaultUvLoop) {
       mainSource = `#define BOXEDNODE_USE_DEFAULT_UV_LOOP 1\n${mainSource}`;
+    }
+    if (snapshotMode === 'generate') {
+      mainSource = `#define BOXEDNODE_GENERATE_SNAPSHOT 1\n${mainSource}`;
+    }
+    if (snapshotMode === 'consume') {
+      mainSource = `#define BOXEDNODE_CONSUME_SNAPSHOT 1\n${mainSource}`;
     }
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
     logger.stepCompleted();
@@ -365,24 +388,27 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   }
 
   let binaryPath: string;
-  if (!options.useCodeCache) {
-    binaryPath = await writeMainFileAndCompile({
-      codeCacheBlob: new Uint8Array(0),
-      codeCacheMode: 'ignore'
-    });
+  if (!options.useCodeCache && !options.useNodeSnapshot) {
+    binaryPath = await writeMainFileAndCompile();
   } else {
     binaryPath = await writeMainFileAndCompile({
-      codeCacheBlob: new Uint8Array(0),
-      codeCacheMode: 'generate'
+      codeCacheMode: options.useNodeSnapshot ? 'ignore' : 'generate',
+      snapshotMode: options.useNodeSnapshot ? 'generate' : 'ignore'
     });
-    logger.stepStarting('Running code cache generation');
-    const codeCacheResult = await promisify(execFile)(binaryPath, { encoding: 'buffer' });
-    if (codeCacheResult.stdout.length === 0) {
-      throw new Error('Empty code cache result');
+    const intermediateFile = path.join(nodeSourcePath, 'intermediate.out');
+    logger.stepStarting('Running code cache/snapshot generation');
+    await fs.rm(intermediateFile, { force: true });
+    await promisify(execFile)(binaryPath, { cwd: nodeSourcePath });
+    const result = await fs.readFile(intermediateFile);
+    if (result.length === 0) {
+      throw new Error('Empty code cache/snapshot result');
     }
     logger.stepCompleted();
-    binaryPath = await writeMainFileAndCompile({
-      codeCacheBlob: codeCacheResult.stdout,
+    binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
+      snapshotBlob: result,
+      snapshotMode: 'consume'
+    } : {
+      codeCacheBlob: result,
       codeCacheMode: 'consume'
     });
   }

@@ -1,6 +1,7 @@
 'use strict';
 const Module = require('module');
 const vm = require('vm');
+const v8 = require('v8');
 const path = require('path');
 const assert = require('assert');
 const {
@@ -9,6 +10,8 @@ const {
 } = REPLACE_WITH_BOXEDNODE_CONFIG;
 const hydatedRequireMappings =
   requireMappings.map(([re, reFlags, linked]) => [new RegExp(re, reFlags), linked]);
+
+if (process.argv[2] === '--') process.argv.splice(2, 1);
 
 if (enableBindingsPatch) {
   // Hack around various deficiencies in https://github.com/TooTallNate/node-bindings
@@ -50,11 +53,24 @@ if (enableBindingsPatch) {
   });
 }
 
+const outerRequire = require;
 module.exports = (src, codeCacheMode, codeCache) => {
   const __filename = process.execPath;
   const __dirname = path.dirname(process.execPath);
-  const innerRequire = Module.createRequire(__filename);
+  let innerRequire;
   const exports = {};
+  const usesSnapshot = !!v8?.startupSnapshot?.isBuildingSnapshot();
+
+  if (usesSnapshot) {
+    innerRequire = outerRequire; // Node.js snapshots currently do not support userland require()
+    v8.startupSnapshot.addDeserializeCallback(() => {
+      if (process.argv[1] === '--boxednode-snapshot-argv-fixup') {
+        process.argv.splice(1, 1, process.execPath);
+      }
+    });
+  } else {
+    innerRequire = Module.createRequire(__filename);
+  }
 
   function require(module) {
     for (const [ re, linked ] of hydatedRequireMappings) {
@@ -69,7 +85,7 @@ module.exports = (src, codeCacheMode, codeCache) => {
   Object.setPrototypeOf(require, Object.getPrototypeOf(innerRequire));
 
   process.argv.unshift(__filename);
-  process.boxednode = {};
+  process.boxednode = { usesSnapshot };
 
   const module = {
     exports,
@@ -79,17 +95,23 @@ module.exports = (src, codeCacheMode, codeCache) => {
     path: __dirname,
     require
   };
-  const mainFunction = vm.compileFunction(src, [
-    '__filename', '__dirname', 'require', 'exports', 'module'
-  ], {
-    filename: __filename,
-    cachedData: codeCache.length > 0 ? codeCache : undefined,
-    produceCachedData: codeCacheMode === 'generate'
-  });
-  if (codeCacheMode === 'generate') {
-    assert.strictEqual(mainFunction.cachedDataProduced, true);
-    process.stdout.write(mainFunction.cachedData);
-    return;
+
+  let mainFunction;
+  if (usesSnapshot) {
+    mainFunction = eval(`(function(__filename, __dirname, require, exports, module) {\n${src}\n})`);
+  } else {
+    mainFunction = vm.compileFunction(src, [
+      '__filename', '__dirname', 'require', 'exports', 'module'
+    ], {
+      filename: __filename,
+      cachedData: codeCache.length > 0 ? codeCache : undefined,
+      produceCachedData: codeCacheMode === 'generate'
+    });
+    if (codeCacheMode === 'generate') {
+      assert.strictEqual(mainFunction.cachedDataProduced, true);
+      require('fs').writeFileSync('intermediate.out', mainFunction.cachedData);
+      return;
+    }
   }
 
   process.boxednode.hasCodeCache = codeCache.length > 0;
