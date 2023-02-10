@@ -112,7 +112,7 @@ export async function createCompressedBlobDefinition (fnName: string, source: Ui
   });
   return `
   static const uint8_t ${fnName}_source_[] = {
-    ${Uint8Array.prototype.toString.call(compressed)}
+    ${Uint8Array.prototype.toString.call(compressed) || '0'}
   };
 
 #if __cplusplus >= 201703L
