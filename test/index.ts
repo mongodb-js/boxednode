@@ -1,5 +1,6 @@
 import { compileJSFileAsBinary } from '..';
 import path from 'path';
+import os from 'os';
 import assert from 'assert';
 import childProcess from 'child_process';
 import semver from 'semver';
@@ -208,7 +209,9 @@ describe('basic functionality', () => {
         nodeVersionRange: 'v20.0.0-nightly202302078e6e215481', // TODO: Update to real version
         sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
         targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
-        useNodeSnapshot: true
+        useNodeSnapshot: true,
+        // the nightly path name is too long for Windows...
+        tmpdir: process.platform === 'win32' ? path.join(os.tmpdir(), 'bn') : undefined
       });
 
       {
