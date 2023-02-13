@@ -78,6 +78,10 @@ export function npm (): string[] {
 }
 
 export function createCppJsStringDefinition (fnName: string, source: string): string {
+  if (!source.length) {
+    return `Local<String> ${fnName}(Isolate* isolate) { return String::Empty(isolate); }`;
+  }
+
   const sourceAsCharCodeArray = new Uint16Array(source.length);
   let isAllLatin1 = true;
   for (let i = 0; i < source.length; i++) {
