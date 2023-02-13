@@ -134,7 +134,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
   }
 
   {
-    FILE* fp = fopen("intermediate.out", "w");
+    FILE* fp = fopen("intermediate.out", "wb");
     setup->CreateSnapshot()->ToFile(fp);
     fclose(fp);
   }
