@@ -78,6 +78,10 @@ export function npm (): string[] {
 }
 
 export function createCppJsStringDefinition (fnName: string, source: string): string {
+  if (!source.length) {
+    return `Local<String> ${fnName}(Isolate* isolate) { return String::Empty(isolate); }`;
+  }
+
   const sourceAsCharCodeArray = new Uint16Array(source.length);
   let isAllLatin1 = true;
   for (let i = 0; i < source.length; i++) {
@@ -112,13 +116,14 @@ export async function createCompressedBlobDefinition (fnName: string, source: Ui
   });
   return `
   static const uint8_t ${fnName}_source_[] = {
-    ${Uint8Array.prototype.toString.call(compressed)}
+    ${Uint8Array.prototype.toString.call(compressed) || '0'}
   };
 
-  std::string ${fnName}() {
-    ${source.length === 0 ? 'return {};' : `
+#if __cplusplus >= 201703L
+  [[maybe_unused]]
+#endif
+  static void ${fnName}_Read(char* dst) {
     size_t decoded_size = ${source.length};
-    std::string dst(decoded_size, 0);
     const auto result = BrotliDecoderDecompress(
       ${compressed.length},
       ${fnName}_source_,
@@ -126,6 +131,19 @@ export async function createCompressedBlobDefinition (fnName: string, source: Ui
       reinterpret_cast<uint8_t*>(&dst[0]));
     assert(result == BROTLI_DECODER_RESULT_SUCCESS);
     assert(decoded_size == ${source.length});
+  }
+
+  std::string ${fnName}() {
+    ${source.length === 0 ? 'return {};' : `
+    std::string dst(${source.length}, 0);
+    ${fnName}_Read(&dst[0]);
+    return dst;`}
+  }
+
+  std::vector<char> ${fnName}Vector() {
+    ${source.length === 0 ? 'return {};' : `
+    std::vector<char> dst(${source.length});
+    ${fnName}_Read(&dst[0]);
     return dst;`}
   }
 

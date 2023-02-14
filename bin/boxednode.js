@@ -33,6 +33,9 @@ const argv = require('yargs')
   .option('use-code-cache', {
     alias: 'H', type: 'boolean', desc: 'Use Node.js code cache support to speed up startup'
   })
+  .option('use-node-snapshot', {
+    alias: 'S', type: 'boolean', desc: 'Use experimental Node.js snapshot support'
+  })
   .example('$0 -s myProject.js -t myProject.exe -n ^14.0.0',
     'Create myProject.exe from myProject.js using Node.js v14')
   .help()
@@ -50,7 +53,8 @@ const argv = require('yargs')
       makeArgs: (argv.M || '').split(',').filter(Boolean),
       namespace: argv.N,
       useLegacyDefaultUvLoop: argv.useLegacyDefaultUvLoop,
-      useCodeCache: argv.H
+      useCodeCache: argv.H,
+      useNodeSnapshot: argv.S
     });
   } catch (err) {
     console.error(err);

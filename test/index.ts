@@ -1,5 +1,6 @@
 import { compileJSFileAsBinary } from '..';
 import path from 'path';
+import os from 'os';
 import assert from 'assert';
 import childProcess from 'child_process';
 import semver from 'semver';
@@ -199,6 +200,29 @@ describe('basic functionality', () => {
         const parsed = JSON.parse(stdout);
         assert.strictEqual(parsed.hasCodeCache, true);
         assert([false, undefined].includes(parsed.rejectedCodeCache));
+      }
+    });
+
+    it('works with snapshot support (shard 5)', async function () {
+      this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      await compileJSFileAsBinary({
+        nodeVersionRange: 'v20.0.0-nightly202302078e6e215481', // TODO: Update to real version
+        sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
+        targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
+        useNodeSnapshot: true,
+        // the nightly path name is too long for Windows...
+        tmpdir: process.platform === 'win32' ? path.join(os.tmpdir(), 'bn') : undefined
+      });
+
+      {
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`), ['a', 'b', 'c'],
+          { encoding: 'utf8' });
+        const { currentArgv, originalArgv } = JSON.parse(stdout);
+        assert(currentArgv[0].includes('snapshot-echo-args'));
+        assert(currentArgv[1].includes('snapshot-echo-args'));
+        assert.deepStrictEqual(currentArgv.slice(2), ['a', 'b', 'c']);
+        assert.strictEqual(originalArgv.length, 2); // [execPath, execPath]
       }
     });
   });
