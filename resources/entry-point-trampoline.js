@@ -41,6 +41,7 @@ if (enableBindingsPatch) {
           if (!entry) return entry;
           const origGetFileName = entry.getFileName;
           Object.defineProperty(entry, 'getFileName', {
+            configurable: true,
             value: function(...args) {
               return origGetFileName.call(this, ...args) || '';
             }
