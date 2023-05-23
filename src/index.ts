@@ -201,6 +201,23 @@ async function compileNode (
       configure.push('--link-module', module);
     }
     await spawnBuildCommand(configure, options);
+    if (configure.includes('--fully-static') || configure.includes('--partly-static')) {
+      // https://github.com/nodejs/node/issues/41497#issuecomment-1013137433
+      for (const file of [
+        'out/tools/v8_gypfiles/gen-regexp-special-case.target.mk',
+        'out/test_crypto_engine.target.mk'
+      ]) {
+        const target = path.join(sourcePath, file);
+        try {
+          await fs.stat(target);
+        } catch {
+          continue;
+        }
+        let source = await fs.readFile(target, 'utf8');
+        source = source.replace(/-static/g, '');
+        await fs.writeFile(target, 'utf8');
+      }
+    }
 
     const make = ['make', ...makeArgs];
     if (!make.some((arg) => /^-j/.test(arg))) { make.push(`-j${cpus}`); }
