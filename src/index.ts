@@ -312,7 +312,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   }
 
   logger.stepStarting('Inserting custom code into Node.js source');
-  await fs.mkdir(path.join(nodeSourcePath, 'lib-boxednode', namespace), { recursive: true });
+  await fs.mkdir(path.join(nodeSourcePath, 'lib-boxednode'), { recursive: true });
   let entryPointTrampolineSource = await fs.readFile(
     path.join(__dirname, '..', 'resources', 'entry-point-trampoline.js'), 'utf8');
   entryPointTrampolineSource = entryPointTrampolineSource.replace(
@@ -322,9 +322,9 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       enableBindingsPatch
     }));
   await fs.writeFile(
-    path.join(nodeSourcePath, 'lib-boxednode', namespace, `${namespace}.js`),
+    path.join(nodeSourcePath, 'lib-boxednode', `${namespace}.js`),
     entryPointTrampolineSource);
-  extraJSSourceFiles.push(`./lib-boxednode/${namespace}/${namespace}.js`);
+  extraJSSourceFiles.push(`./lib-boxednode/${namespace}.js`);
   logger.stepCompleted();
 
   logger.stepStarting('Storing executable metadata');
@@ -355,7 +355,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     let mainSource = await fs.readFile(
       path.join(__dirname, '..', 'resources', 'main-template.cc'), 'utf8');
     mainSource = mainSource.replace(/\bREPLACE_WITH_ENTRY_POINT\b/g,
-      JSON.stringify(`${namespace}/${namespace}`));
+      JSON.stringify(`lib-boxednode/${namespace}`));
     mainSource = mainSource.replace(/\bREPLACE_DECLARE_LINKED_MODULES\b/g,
       registerFunctions.map((fn) => `void ${fn}(const void**,const void**);\n`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_DEFINE_LINKED_MODULES\b/g,
