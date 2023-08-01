@@ -14,7 +14,7 @@ functions:
           set -e
           set -x
 
-          export NODE_VERSION=16.19.0
+          export NODE_VERSION=${node_version|20.5.0}
           bash .evergreen/install-node.sh
   install:
     - command: shell.exec
@@ -56,45 +56,47 @@ functions:
 
           . .evergreen/use-node.sh
           npm run build
-          npm run test
+          npm run test-ci
 
 tasks:
   - name: test_n14
     commands:
       - func: checkout
       - func: install_node
-      - func: install
-      - func: test
         vars:
           node_version: "14.21.3"
+      - func: install
+      - func: test
   - name: test_n16
     commands:
       - func: checkout
       - func: install_node
-      - func: install
-      - func: test
         vars:
           node_version: "16.20.1"
+      - func: install
+      - func: test
   - name: test_n18
     commands:
       - func: checkout
       - func: install_node
-      - func: install
-      - func: test
         vars:
           node_version: "18.17.0"
+      - func: install
+      - func: test
   - name: test_n20
     commands:
       - func: checkout
       - func: install_node
-      - func: install
-      - func: test
         vars:
           node_version: "20.5.0"
+      - func: install
+      - func: test
   - name: check
     commands:
       - func: checkout
       - func: install_node
+        vars:
+          node_version: "20.5.0"
       - func: install
       - func: check
 
