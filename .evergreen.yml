@@ -64,6 +64,7 @@ functions:
           # able to compile OpenSSL with assembly support,
           # so we revert back to the slower version.
           if [ "$OS" == "Windows_NT" ]; then
+            export PATH="/cygdrive/c/python/Python311/Scripts:/cygdrive/c/python/Python311:/cygdrive/c/Python311/Scripts:/cygdrive/c/Python311:$PATH"
             export BOXEDNODE_CONFIGURE_ARGS='openssl-no-asm'
           elif uname -a | grep -q 'Darwin.*x86_64'; then
             export BOXEDNODE_CONFIGURE_ARGS='--openssl-no-asm'
