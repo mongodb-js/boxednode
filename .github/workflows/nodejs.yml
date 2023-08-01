@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
         node-version: [14.x, 16.x, 18.x, 19.x]
     runs-on: ${{ matrix.os }}
     steps:
@@ -29,36 +29,3 @@ jobs:
         run: npm install
       - name: Test
         run: npm test
-
-  test-windows:
-    name: Windows tests
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [14.x, 16.x, 18.x, 19.x]
-        shard: [1, 2, 3, 4, 5]
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Install python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.10'
-      - name: Install Node.js build deps
-        run: choco install nasm
-      - name: Install developer command prompt
-        uses: ilammy/msvc-dev-cmd@v1
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
-        with:
-          check-latest: true
-          node-version: ${{ matrix.node-version }}
-      - name: Install npm@8.x
-        if: ${{ matrix.node-version == '14.x' }}
-        run: npm install -g npm@8.x
-      - name: Install Dependencies
-        run: npm install
-      - name: Sharded tests
-        run: npm test -- -g "shard ${{ matrix.shard }}"
-      - name: Unsharded tests
-        run: npm test -- -g "shard [1-5]" -i

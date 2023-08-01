@@ -1,0 +1,134 @@
+exec_timeout_secs: 600
+
+functions:
+  checkout:
+    - command: git.get_project
+      params:
+        directory: src
+  install_node:
+    - command: shell.exec
+      params:
+        working_dir: src
+        shell: bash
+        script: |
+          set -e
+          set -x
+
+          export NODE_VERSION=16.19.0
+          bash .evergreen/install-node.sh
+  install:
+    - command: shell.exec
+      params:
+        working_dir: src
+        shell: bash
+        script: |
+          set -e
+          set -x
+
+          . .evergreen/use-node.sh
+          npm ci
+  check:
+    - command: shell.exec
+      params:
+        working_dir: src
+        shell: bash
+        script: |
+          set -e
+          set -x
+
+          . .evergreen/use-node.sh
+          npm run build
+          npm run lint
+  test:
+    - command: shell.exec
+      params:
+        working_dir: src
+        shell: bash
+        env:
+          OKTA_TEST_CONFIG: ${okta_test_config}
+          OKTA_TEST_CREDENTIALS: ${okta_test_credentials}
+          AZURE_TEST_CONFIG: ${azure_test_config}
+          AZURE_TEST_CREDENTIALS: ${azure_test_credentials}
+          DISTRO_ID: ${distro_id}
+        script: |
+          set -e
+          set -x
+
+          . .evergreen/use-node.sh
+          npm run build
+          npm run test-ci
+
+tasks:
+  - name: test_n14
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "14.21.3"
+  - name: test_16
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "16.20.1"
+  - name: test_n18
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "18.17.0"
+  - name: test_n20
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "20.5.0"
+  - name: check
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: check
+
+buildvariants:
+  - name: ubuntu_x64_test
+    display_name: 'Ubuntu 20.04 x64'
+    run_on: ubuntu2004-large
+    tasks:
+      - test_n14
+      - test_n16
+      - test_n18
+      - test_n20
+      - check
+  - name: macos_x64_test
+    display_name: 'macOS 11.00 x64'
+    run_on: macos-1100
+    tasks:
+      - test_n14
+      - test_n16
+      - test_n18
+      - test_n20
+  - name: macos_arm64_test
+    display_name: 'macOS 11.00 arm64'
+    run_on: macos-1100-arm64
+    tasks:
+      - test_n14
+      - test_n16
+      - test_n18
+      - test_n20
+  - name: windows_x64_test
+    display_name: 'Windows x64'
+    run_on: windows-vsCurrent-large
+    tasks:
+      - test_n14
+      - test_n16
+      - test_n18
+      - test_n20
