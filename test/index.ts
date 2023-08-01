@@ -11,6 +11,19 @@ import { promises as fs } from 'fs';
 const execFile = promisify(childProcess.execFile);
 const exeSuffix = process.platform === 'win32' ? '.exe' : '';
 
+function getConfigureArgs(): string[] {
+  const platform = os.platform();
+  if (platform === 'win32') {
+    return ['openssl-no-asm'];
+  }
+
+  if (platform === 'darwin') {
+    return ['--openssl-no-asm'];
+  }
+
+  return [];
+}
+
 describe('basic functionality', () => {
   // Test the currently running Node.js version. Other versions can be checked
   // manually that way, or through the CI matrix.
@@ -22,7 +35,8 @@ describe('basic functionality', () => {
       await compileJSFileAsBinary({
         nodeVersionRange: version,
         sourceFile: path.resolve(__dirname, 'resources/example.js'),
-        targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`)
+        targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`),
+        configureArgs: getConfigureArgs()
       });
 
       {
@@ -108,6 +122,7 @@ describe('basic functionality', () => {
         nodeVersionRange: version,
         sourceFile: path.resolve(__dirname, 'resources/example.js'),
         targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`),
+        configureArgs: getConfigureArgs(),
         addons: [
           {
             path: path.dirname(await pkgUp({ cwd: require.resolve('actual-crash') })),
@@ -135,6 +150,7 @@ describe('basic functionality', () => {
         nodeVersionRange: version,
         sourceFile: path.resolve(__dirname, 'resources/example.js'),
         targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`),
+        configureArgs: getConfigureArgs(),
         addons: [
           {
             path: path.dirname(await pkgUp({ cwd: require.resolve('weak-napi') })),
@@ -164,6 +180,7 @@ describe('basic functionality', () => {
           nodeVersionRange: version,
           sourceFile: path.resolve(__dirname, 'resources/example.js'),
           targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`),
+          configureArgs: getConfigureArgs(),
           env: { CC: 'false', CXX: 'false' },
           preCompileHook
         });
@@ -181,6 +198,7 @@ describe('basic functionality', () => {
         nodeVersionRange: version,
         sourceFile: path.resolve(__dirname, 'resources/example.js'),
         targetFile: path.resolve(__dirname, `resources/example${exeSuffix}`),
+        configureArgs: getConfigureArgs(),
         useCodeCache: true
       });
 
@@ -207,6 +225,7 @@ describe('basic functionality', () => {
         nodeVersionRange: '20.x',
         sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
         targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
+        configureArgs: getConfigureArgs(),
         useNodeSnapshot: true,
         // the nightly path name is too long for Windows...
         tmpdir: process.platform === 'win32' ? path.join(os.tmpdir(), 'bn') : undefined
