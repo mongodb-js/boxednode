@@ -204,7 +204,7 @@ describe('basic functionality', () => {
     it('works with snapshot support', async function () {
       this.timeout(2 * 60 * 60 * 1000); // 2 hours
       await compileJSFileAsBinary({
-        nodeVersionRange: '20.x',
+        nodeVersionRange: 'v21.0.0-nightly20230801d396a041f7',
         sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
         targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
         useNodeSnapshot: true,
