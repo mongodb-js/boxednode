@@ -1,4 +1,4 @@
-exec_timeout_secs: 2400
+exec_timeout_secs: 3600
 
 functions:
   checkout:
