@@ -11,7 +11,7 @@ import { promises as fs } from 'fs';
 const execFile = promisify(childProcess.execFile);
 const exeSuffix = process.platform === 'win32' ? '.exe' : '';
 
-function getConfigureArgs(): string[] {
+function getConfigureArgs (): string[] {
   const platform = os.platform();
   if (platform === 'win32') {
     return ['openssl-no-asm'];
