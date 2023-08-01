@@ -21,4 +21,3 @@ tmp/expansions.yaml
 tmp/
 .esm-wrapper.mjs
 /lib/
-package-lock.json
