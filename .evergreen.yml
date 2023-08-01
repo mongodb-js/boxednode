@@ -26,7 +26,7 @@ functions:
           set -x
 
           . .evergreen/use-node.sh
-          npm ci
+          npm install
   check:
     - command: shell.exec
       params:
