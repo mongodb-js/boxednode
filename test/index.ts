@@ -16,7 +16,7 @@ const exeSuffix = process.platform === 'win32' ? '.exe' : '';
 describe('basic functionality', () => {
   // Test the currently running Node.js version. Other versions can be checked
   // manually that way, or through the CI matrix.
-  const version = process.version.slice(1).replace(/-.*$/, '');
+  const version = process.env.TEST_NODE_VERSION || process.version.slice(1).replace(/-.*$/, '');
 
   describe(`On Node v${version}`, function () {
     it('works in a simple case (shard 1)', async function () {

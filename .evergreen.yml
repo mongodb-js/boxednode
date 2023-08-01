@@ -14,7 +14,7 @@ functions:
           set -e
           set -x
 
-          export NODE_VERSION=${node_version|20.5.0}
+          export NODE_VERSION=20.5.0
           bash .evergreen/install-node.sh
   install:
     - command: shell.exec
@@ -45,6 +45,7 @@ functions:
         working_dir: src
         shell: bash
         env:
+          TEST_NODE_VERSION: ${node_version}
           OKTA_TEST_CONFIG: ${okta_test_config}
           OKTA_TEST_CREDENTIALS: ${okta_test_credentials}
           AZURE_TEST_CONFIG: ${azure_test_config}
@@ -56,47 +57,45 @@ functions:
 
           . .evergreen/use-node.sh
           npm run build
-          npm run test-ci
+          TEST_NODE_VERSION="$TEST_NODE_VERSION" npm run test-ci
 
 tasks:
   - name: test_n14
     commands:
       - func: checkout
       - func: install_node
-        vars:
-          node_version: "14.21.3"
       - func: install
       - func: test
+        vars:
+          node_version: "14.21.3"
   - name: test_n16
     commands:
       - func: checkout
       - func: install_node
-        vars:
-          node_version: "16.20.1"
       - func: install
       - func: test
+        vars:
+          node_version: "16.20.1"
   - name: test_n18
     commands:
       - func: checkout
       - func: install_node
-        vars:
-          node_version: "18.17.0"
       - func: install
       - func: test
+        vars:
+          node_version: "18.17.0"
   - name: test_n20
     commands:
       - func: checkout
       - func: install_node
-        vars:
-          node_version: "20.5.0"
       - func: install
       - func: test
+        vars:
+          node_version: "20.5.0"
   - name: check
     commands:
       - func: checkout
       - func: install_node
-        vars:
-          node_version: "20.5.0"
       - func: install
       - func: check
 
