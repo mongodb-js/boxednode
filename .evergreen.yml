@@ -56,7 +56,7 @@ functions:
 
           . .evergreen/use-node.sh
           npm run build
-          npm run test-ci
+          npm run test
 
 tasks:
   - name: test_n14
