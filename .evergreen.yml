@@ -1,4 +1,4 @@
-exec_timeout_secs: 3600
+exec_timeout_secs: 10800
 
 functions:
   checkout:
@@ -142,7 +142,7 @@ buildvariants:
       - test_n20
   - name: windows_x64_test
     display_name: 'Windows x64'
-    run_on: windows-vsCurrent-large
+    run_on: windows-vsCurrent-xlarge
     tasks:
       - test_n14
       - test_n16
