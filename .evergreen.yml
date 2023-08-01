@@ -67,7 +67,7 @@ tasks:
       - func: test
         vars:
           node_version: "14.21.3"
-  - name: test_16
+  - name: test_n16
     commands:
       - func: checkout
       - func: install_node
