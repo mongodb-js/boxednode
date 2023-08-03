@@ -2,5 +2,7 @@ src/
 test/
 .nyc_output/
 .github/
+.evergreen/
+.evergreen.yml
 tsconfig.json
 .eslintrc
