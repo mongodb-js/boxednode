@@ -1,0 +1,150 @@
+exec_timeout_secs: 10800
+
+functions:
+  checkout:
+    - command: git.get_project
+      params:
+        directory: src
+  install_node:
+    - command: shell.exec
+      params:
+        working_dir: src
+        shell: bash
+        script: |
+          set -e
+          set -x
+
+          export NODE_VERSION=20.5.0
+          bash .evergreen/install-node.sh
+  install:
+    - command: shell.exec
+      params:
+        working_dir: src
+        shell: bash
+        script: |
+          set -e
+          set -x
+
+          . .evergreen/use-node.sh
+          npm install
+  check:
+    - command: shell.exec
+      params:
+        working_dir: src
+        shell: bash
+        script: |
+          set -e
+          set -x
+
+          . .evergreen/use-node.sh
+          npm run build
+          npm run lint
+  test:
+    - command: shell.exec
+      params:
+        working_dir: src
+        shell: bash
+        env:
+          TEST_NODE_VERSION: ${node_version}
+          OKTA_TEST_CONFIG: ${okta_test_config}
+          OKTA_TEST_CREDENTIALS: ${okta_test_credentials}
+          AZURE_TEST_CONFIG: ${azure_test_config}
+          AZURE_TEST_CREDENTIALS: ${azure_test_credentials}
+          DISTRO_ID: ${distro_id}
+        script: |
+          set -e
+          set -x
+
+          rm -rf /tmp/m && mkdir -pv /tmp/m # Node.js compilation can fail on long path prefixes
+          trap "rm -rf /tmp/m" EXIT
+          export TMP=/tmp/m
+          export TMPDIR=/tmp/m
+
+          # The CI machines we have for Windows and x64 macOS are not
+          # able to compile OpenSSL with assembly support,
+          # so we revert back to the slower version.
+          if [ "$OS" == "Windows_NT" ]; then
+            export PATH="/cygdrive/c/python/Python310/Scripts:/cygdrive/c/python/Python310:/cygdrive/c/Python310/Scripts:/cygdrive/c/Python310:$PATH"
+            export BOXEDNODE_CONFIGURE_ARGS='openssl-no-asm'
+          elif uname -a | grep -q 'Darwin.*x86_64'; then
+            export BOXEDNODE_CONFIGURE_ARGS='--openssl-no-asm'
+          fi
+
+          . .evergreen/use-node.sh
+          npm run build
+          TEST_NODE_VERSION="$TEST_NODE_VERSION" npm run test-ci
+
+tasks:
+  - name: test_n14
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "14.21.3"
+  - name: test_n16
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "16.20.1"
+  - name: test_n18
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "18.17.0"
+  - name: test_n20
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "20.5.0"
+  - name: check
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: check
+
+buildvariants:
+  - name: ubuntu_x64_test
+    display_name: 'Ubuntu 20.04 x64'
+    run_on: ubuntu2004-large
+    tasks:
+      - test_n14
+      - test_n16
+      - test_n18
+      - test_n20
+      - check
+  - name: macos_x64_test
+    display_name: 'macOS 11.00 x64'
+    run_on: macos-1100
+    tasks:
+      - test_n14
+      - test_n16
+      - test_n18
+      - test_n20
+  - name: macos_arm64_test
+    display_name: 'macOS 11.00 arm64'
+    run_on: macos-1100-arm64
+    tasks:
+      - test_n14
+      - test_n16
+      - test_n18
+      - test_n20
+  - name: windows_x64_test
+    display_name: 'Windows x64'
+    run_on: windows-vsCurrent-xlarge
+    tasks:
+      - test_n14
+      - test_n16
+      - test_n18
+      - test_n20

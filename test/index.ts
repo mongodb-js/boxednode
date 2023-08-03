@@ -11,15 +11,13 @@ import { promises as fs } from 'fs';
 const execFile = promisify(childProcess.execFile);
 const exeSuffix = process.platform === 'win32' ? '.exe' : '';
 
-// We shard the tests on Windows because compiling isn't cached there.
-
 describe('basic functionality', () => {
   // Test the currently running Node.js version. Other versions can be checked
   // manually that way, or through the CI matrix.
-  const version = process.version.slice(1).replace(/-.*$/, '');
+  const version = process.env.TEST_NODE_VERSION || process.version.slice(1).replace(/-.*$/, '');
 
   describe(`On Node v${version}`, function () {
-    it('works in a simple case (shard 1)', async function () {
+    it('works in a simple case', async function () {
       this.timeout(2 * 60 * 60 * 1000); // 2 hours
       await compileJSFileAsBinary({
         nodeVersionRange: version,
@@ -100,7 +98,7 @@ describe('basic functionality', () => {
       }
     });
 
-    it('works with a Nan addon (shard 2)', async function () {
+    it('works with a Nan addon', async function () {
       if (semver.lt(version, '12.19.0')) {
         return this.skip(); // no addon support available
       }
@@ -127,7 +125,7 @@ describe('basic functionality', () => {
       }
     });
 
-    it('works with a N-API addon (shard 3)', async function () {
+    it('works with a N-API addon', async function () {
       if (semver.lt(version, '14.13.0')) {
         return this.skip(); // no N-API addon support available
       }
@@ -154,7 +152,7 @@ describe('basic functionality', () => {
       }
     });
 
-    it('passes through env vars and runs the pre-compile hook (shard 3)', async function () {
+    it('passes through env vars and runs the pre-compile hook', async function () {
       this.timeout(2 * 60 * 60 * 1000); // 2 hours
       let ranPreCompileHook = false;
       async function preCompileHook (nodeSourceTree: string) {
@@ -177,7 +175,7 @@ describe('basic functionality', () => {
       throw new Error('unreachable');
     });
 
-    it('works with code caching support (shard 4)', async function () {
+    it('works with code caching support', async function () {
       this.timeout(2 * 60 * 60 * 1000); // 2 hours
       await compileJSFileAsBinary({
         nodeVersionRange: version,
@@ -203,10 +201,10 @@ describe('basic functionality', () => {
       }
     });
 
-    it('works with snapshot support (shard 5)', async function () {
+    it('works with snapshot support', async function () {
       this.timeout(2 * 60 * 60 * 1000); // 2 hours
       await compileJSFileAsBinary({
-        nodeVersionRange: 'v20.0.0-nightly202302078e6e215481', // TODO: Update to real version
+        nodeVersionRange: 'v21.0.0-nightly20230801d396a041f7',
         sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
         targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
         useNodeSnapshot: true,
