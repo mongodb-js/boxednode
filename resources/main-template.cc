@@ -331,8 +331,10 @@ static int BoxednodeMain(std::vector<std::string> args) {
     return exit_code;
   }
 #else
+#if OPENSSL_VERSION_MAJOR >= 3
   if (args.size() > 1)
     args.insert(args.begin() + 1, "--openssl-shared-config");
+#endif
   auto result = node::InitializeOncePerProcess(args, {
     node::ProcessInitializationFlags::kNoInitializeV8,
     node::ProcessInitializationFlags::kNoInitializeNodeV8Platform,
