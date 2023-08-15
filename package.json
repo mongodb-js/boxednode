@@ -1,6 +1,6 @@
 {
   "name": "boxednode",
-  "version": "2.0.1",
+  "version": "2.1.1",
   "description": "Create a shippable binary from a JS file",
   "main": "lib/index.js",
   "exports": {
@@ -15,7 +15,8 @@
   },
   "scripts": {
     "lint": "eslint **/*.ts bin/*.js",
-    "test": "npm run lint && npm run build && nyc mocha --colors -r ts-node/register test/*.ts",
+    "test": "npm run lint && npm run build && npm run test-ci",
+    "test-ci": "nyc mocha --colors -r ts-node/register test/*.ts",
     "build": "npm run compile-ts && gen-esm-wrapper . ./.esm-wrapper.mjs",
     "prepack": "npm run build",
     "compile-ts": "tsc -p tsconfig.json"

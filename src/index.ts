@@ -288,6 +288,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
 
   const nodeSourcePath = await getNodeSourceForVersion(
     options.nodeVersionRange, options.tmpdir, logger);
+  const nodeVersion = await getNodeVersionFromSourceDirectory(nodeSourcePath);
 
   const requireMappings: [RegExp, string][] = [];
   const extraJSSourceFiles: string[] = [];
@@ -329,7 +330,6 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   }
 
   logger.stepStarting('Inserting custom code into Node.js source');
-  await fs.mkdir(path.join(nodeSourcePath, 'lib', namespace), { recursive: true });
   let entryPointTrampolineSource = await fs.readFile(
     path.join(__dirname, '..', 'resources', 'entry-point-trampoline.js'), 'utf8');
   entryPointTrampolineSource = entryPointTrampolineSource.replace(
@@ -338,10 +338,30 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       requireMappings: requireMappings.map(([re, linked]) => [re.source, re.flags, linked]),
       enableBindingsPatch
     }));
-  await fs.writeFile(
-    path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
-    entryPointTrampolineSource);
-  extraJSSourceFiles.push(`./lib/${namespace}/${namespace}.js`);
+
+  /**
+   * Since Node 20.x, external source code linked from `lib` directory started
+   * failing the Node.js build process because of the file being linked multiple
+   * times which is why we do not link the external files anymore from `lib`
+   * directory and instead from a different directory, `lib-boxednode`. This
+   * however does not work for any node version < 20 which is why we are
+   * conditionally generating the entry point and configure params here based on
+   * Node version.
+   */
+  const { customCodeSource, customCodeConfigureParam, customCodeEntryPoint } = nodeVersion[0] >= 20
+    ? {
+      customCodeSource: path.join(nodeSourcePath, 'lib-boxednode', `${namespace}.js`),
+      customCodeConfigureParam: `./lib-boxednode/${namespace}.js`,
+      customCodeEntryPoint: `lib-boxednode/${namespace}`
+    } : {
+      customCodeSource: path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
+      customCodeConfigureParam: `./lib/${namespace}/${namespace}.js`,
+      customCodeEntryPoint: `${namespace}/${namespace}`
+    };
+
+  await fs.mkdir(path.dirname(customCodeSource), { recursive: true });
+  await fs.writeFile(customCodeSource, entryPointTrampolineSource);
+  extraJSSourceFiles.push(customCodeConfigureParam);
   logger.stepCompleted();
 
   logger.stepStarting('Storing executable metadata');
@@ -372,7 +392,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     let mainSource = await fs.readFile(
       path.join(__dirname, '..', 'resources', 'main-template.cc'), 'utf8');
     mainSource = mainSource.replace(/\bREPLACE_WITH_ENTRY_POINT\b/g,
-      JSON.stringify(`${namespace}/${namespace}`));
+      JSON.stringify(customCodeEntryPoint));
     mainSource = mainSource.replace(/\bREPLACE_DECLARE_LINKED_MODULES\b/g,
       registerFunctions.map((fn) => `void ${fn}(const void**,const void**);\n`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_DEFINE_LINKED_MODULES\b/g,
