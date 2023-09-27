@@ -16,6 +16,7 @@ import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
 import { fileURLToPath, URL } from 'url';
 import { execFile } from 'child_process';
+import { once } from 'events';
 
 // Download and unpack a tarball containing the code for a specific Node.js version.
 async function getNodeSourceForVersion (range: string, dir: string, logger: Logger, retries = 2): Promise<string> {
@@ -99,7 +100,7 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
   }
 
   let tarballStream: Readable;
-  let tarballWritePromise: Promise<unknown>;
+  let tarballWritePromise: Promise<unknown> | undefined;
   if (hasCachedTarball) {
     tarballStream = createReadStream(cachedTarballPath);
   } else {
@@ -135,14 +136,22 @@ async function getNodeSourceForVersion (range: string, dir: string, logger: Logg
   // Streaming unpack. This will create the directory `${dir}/node-${version}`
   // with the Node.js source tarball contents in it.
   try {
-    await pipeline(
-      tarballStream,
-      zlib.createGunzip(),
-      tar.x({
-        cwd: dir
+    await Promise.race([
+      Promise.all([
+        pipeline(
+          tarballStream,
+          zlib.createGunzip(),
+          tar.x({
+            cwd: dir
+          })
+        ),
+        tarballWritePromise
+      ]),
+      // Unclear why this can happen, but it looks in CI like it does
+      once(process, 'beforeExit').then(() => {
+        throw new Error('premature exit from the event loop');
       })
-    );
-    await tarballWritePromise;
+    ]);
   } catch (err) {
     if (retries > 0) {
       logger.stepFailed(err);
