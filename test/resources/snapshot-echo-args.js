@@ -7,6 +7,7 @@ const originalArgv = [...process.argv];
 setDeserializeMainFunction(() => {
   console.log(JSON.stringify({
     currentArgv: process.argv,
-    originalArgv
+    originalArgv,
+    timingData: process.boxednode.getTimingData()
   }));
 });

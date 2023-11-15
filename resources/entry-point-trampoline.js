@@ -60,7 +60,8 @@ module.exports = (src, codeCacheMode, codeCache) => {
   const __dirname = path.dirname(process.execPath);
   let innerRequire;
   const exports = {};
-  const usesSnapshot = !!v8?.startupSnapshot?.isBuildingSnapshot();
+  const isBuildingSnapshot = () => !!v8?.startupSnapshot?.isBuildingSnapshot();
+  const usesSnapshot = isBuildingSnapshot();
 
   if (usesSnapshot) {
     innerRequire = outerRequire; // Node.js snapshots currently do not support userland require()
@@ -118,6 +119,27 @@ module.exports = (src, codeCacheMode, codeCache) => {
   process.boxednode.hasCodeCache = codeCache.length > 0;
   // https://github.com/nodejs/node/pull/46320
   process.boxednode.rejectedCodeCache = mainFunction.cachedDataRejected;
+
+  let jsTimingEntries = [];
+  if (usesSnapshot) {
+    v8.startupSnapshot.addDeserializeCallback(() => {
+      jsTimingEntries = [];
+    });
+  }
+  process.boxednode.markTime = (label) => {
+    jsTimingEntries.push([label, process.hrtime.bigint()]);
+  };
+  process.boxednode.getTimingData = () => {
+    if (isBuildingSnapshot()) {
+      throw new Error('getTimingData() is not available during snapshot building');
+    }
+    const data = [
+      ...jsTimingEntries,
+      ...process._linkedBinding('boxednode_linked_bindings').getTimingData()
+    ].sort((a, b) => Number(a[1] - b[1]));
+    // Adjust times so that process initialization happens at time 0
+    return data.map(([label, time]) => [label, Number(time - data[0][1])]);
+  };
 
   mainFunction(__filename, __dirname, require, exports, module);
   return module.exports;

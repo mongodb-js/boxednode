@@ -96,6 +96,17 @@ describe('basic functionality', () => {
         assert(stdout.includes('bananananana'), `Missed process.title change in ${stdout}`);
         proc.kill();
       }
+
+      {
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), [
+            'process.boxednode.markTime("running js");JSON.stringify(process.boxednode.getTimingData())'
+          ],
+          { encoding: 'utf8' });
+        const timingData = JSON.parse(stdout);
+        assert.strictEqual(timingData[0][0], 'Process initialization');
+        assert.strictEqual(timingData[timingData.length - 1][0], 'running js');
+      }
     });
 
     it('works with a Nan addon', async function () {
@@ -216,11 +227,12 @@ describe('basic functionality', () => {
         const { stdout } = await execFile(
           path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`), ['a', 'b', 'c'],
           { encoding: 'utf8' });
-        const { currentArgv, originalArgv } = JSON.parse(stdout);
+        const { currentArgv, originalArgv, timingData } = JSON.parse(stdout);
         assert(currentArgv[0].includes('snapshot-echo-args'));
         assert(currentArgv[1].includes('snapshot-echo-args'));
         assert.deepStrictEqual(currentArgv.slice(2), ['a', 'b', 'c']);
         assert.strictEqual(originalArgv.length, 2); // [execPath, execPath]
+        assert.strictEqual(timingData[0][0], 'Process initialization');
       }
     });
   });
