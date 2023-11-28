@@ -126,8 +126,8 @@ module.exports = (src, codeCacheMode, codeCache) => {
       jsTimingEntries = [];
     });
   }
-  process.boxednode.markTime = (label) => {
-    jsTimingEntries.push([label, process.hrtime.bigint()]);
+  process.boxednode.markTime = (category, label) => {
+    jsTimingEntries.push([category, label, process.hrtime.bigint()]);
   };
   process.boxednode.getTimingData = () => {
     if (isBuildingSnapshot()) {
@@ -136,9 +136,9 @@ module.exports = (src, codeCacheMode, codeCache) => {
     const data = [
       ...jsTimingEntries,
       ...process._linkedBinding('boxednode_linked_bindings').getTimingData()
-    ].sort((a, b) => Number(a[1] - b[1]));
+    ].sort((a, b) => Number(a[2] - b[2]));
     // Adjust times so that process initialization happens at time 0
-    return data.map(([label, time]) => [label, Number(time - data[0][1])]);
+    return data.map(([category, label, time]) => [category, label, Number(time - data[0][2])]);
   };
 
   mainFunction(__filename, __dirname, require, exports, module);
