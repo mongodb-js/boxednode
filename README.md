@@ -148,6 +148,14 @@ This package compiles Node.js from source. See the Node.js
 [BUILDING.md file](https://github.com/nodejs/node/blob/master/BUILDING.md) for
 a complete list of tools that may be necessary.
 
+## Releasing
+
+To release a new version, run the following command in main:
+
+```sh
+npm version [patch|minor|major] && npm it & npm publish && git push origin main --tags
+```
+
 ## Not supported
 
 - Multiple JS files
