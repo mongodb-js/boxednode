@@ -299,7 +299,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
         env.get(),
         "boxednode_linked_bindings",
         boxednode::boxednode_linked_bindings_register, nullptr);
-    boxednode::MarkTime("Node.js Instance", "Added bindings");
+    boxednode::MarkTime("Boxednode Binding", "Added bindings");
 
     // Set up the Node.js instance for execution, and run code inside of it.
     // There is also a variant that takes a callback and provides it with
@@ -313,7 +313,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     if (LoadBoxednodeEnvironment(context).IsEmpty()) {
       return 1; // There has been a JS exception.
     }
-    boxednode::MarkTime("Node.js Instance", "Loaded Environment, entering loop");
+    boxednode::MarkTime("Boxednode Binding", "Loaded Environment, entering loop");
 
     {
       // SealHandleScope protects against handle leaks from callbacks.
