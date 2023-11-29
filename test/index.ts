@@ -100,12 +100,14 @@ describe('basic functionality', () => {
       {
         const { stdout } = await execFile(
           path.resolve(__dirname, `resources/example${exeSuffix}`), [
-            'process.boxednode.markTime("running js");JSON.stringify(process.boxednode.getTimingData())'
+            'process.boxednode.markTime("Whatever", "running js");JSON.stringify(process.boxednode.getTimingData())'
           ],
           { encoding: 'utf8' });
         const timingData = JSON.parse(stdout);
-        assert.strictEqual(timingData[0][0], 'Process initialization');
-        assert.strictEqual(timingData[timingData.length - 1][0], 'running js');
+        assert.strictEqual(timingData[0][0], 'Node.js Instance');
+        assert.strictEqual(timingData[0][1], 'Process initialization');
+        assert.strictEqual(timingData[timingData.length - 1][0], 'Whatever');
+        assert.strictEqual(timingData[timingData.length - 1][1], 'running js');
       }
     });
 
@@ -232,7 +234,8 @@ describe('basic functionality', () => {
         assert(currentArgv[1].includes('snapshot-echo-args'));
         assert.deepStrictEqual(currentArgv.slice(2), ['a', 'b', 'c']);
         assert.strictEqual(originalArgv.length, 2); // [execPath, execPath]
-        assert.strictEqual(timingData[0][0], 'Process initialization');
+        assert.strictEqual(timingData[0][0], 'Node.js Instance');
+        assert.strictEqual(timingData[0][1], 'Process initialization');
       }
     });
   });
