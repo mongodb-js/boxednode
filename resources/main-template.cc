@@ -53,6 +53,7 @@ void TearDownOncePerProcess();
 namespace boxednode {
 namespace {
 struct TimingEntry {
+  const char* const category;
   const char* const label;
   uint64_t const time;
   TimingEntry* next = nullptr;
@@ -60,11 +61,11 @@ struct TimingEntry {
     delete next;
   }
 };
-TimingEntry start_time_entry { "Process initialization", uv_hrtime() };
+TimingEntry start_time_entry { "Node.js Instance", "Process initialization", uv_hrtime() };
 std::atomic<TimingEntry*> current_time_entry { &start_time_entry };
 
-void MarkTime(const char* label) {
-  TimingEntry* new_entry = new TimingEntry { label, uv_hrtime() };
+void MarkTime(const char* category, const char* label) {
+  TimingEntry* new_entry = new TimingEntry {category, label, uv_hrtime() };
   do {
     new_entry->next = current_time_entry.load();
   } while(!current_time_entry.compare_exchange_strong(new_entry->next, new_entry));
@@ -81,6 +82,7 @@ void GetTimingData(const FunctionCallbackInfo<Value>& info) {
   std::vector<Local<Value>> entries;
   while (head != nullptr) {
     Local<Value> elements[] = {
+      String::NewFromUtf8(isolate, head->category).ToLocalChecked(),
       String::NewFromUtf8(isolate, head->label).ToLocalChecked(),
       BigInt::NewFromUnsigned(isolate, head->time)
     };
@@ -143,7 +145,7 @@ static MaybeLocal<Value> LoadBoxednodeEnvironment(Local<Context> context) {
             String::NewFromUtf8Literal(isolate, BOXEDNODE_CODE_CACHE_MODE),
             boxednode::GetBoxednodeCodeCacheBuffer(isolate),
           };
-          boxednode::MarkTime("Calling entrypoint");
+          boxednode::MarkTime("Node.js Instance", "Calling entrypoint");
           if (entrypoint_ret.As<Function>()->Call(
               context,
               Null(isolate),
@@ -151,7 +153,7 @@ static MaybeLocal<Value> LoadBoxednodeEnvironment(Local<Context> context) {
               trampoline_args).IsEmpty()) {
             return {}; // JS exception.
           }
-          boxednode::MarkTime("Called entrypoint");
+          boxednode::MarkTime("Node.js Instance", "Called entrypoint");
           return Null(isolate);
       }
 #endif
@@ -208,18 +210,18 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
 #else
   loop = uv_default_loop();
 #endif
-  boxednode::MarkTime("Initialized Loop");
+  boxednode::MarkTime("Node.js Instance", "Initialized Loop");
 
   std::shared_ptr<ArrayBufferAllocator> allocator =
       ArrayBufferAllocator::Create();
 
 #ifdef BOXEDNODE_CONSUME_SNAPSHOT
   std::vector<char> snapshot_blob_vec = boxednode::GetBoxednodeSnapshotBlobVector();
-  boxednode::MarkTime("Decoded snapshot");
+  boxednode::MarkTime("Node.js Instance", "Decoded snapshot");
   assert(EmbedderSnapshotData::CanUseCustomSnapshotPerIsolate());
   node::EmbedderSnapshotData::Pointer snapshot_blob =
     EmbedderSnapshotData::FromBlob(snapshot_blob_vec);
-  boxednode::MarkTime("Read snapshot");
+  boxednode::MarkTime("Node.js Instance", "Read snapshot");
   Isolate* isolate = NewIsolate(allocator, loop, platform, snapshot_blob.get());
 #elif NODE_VERSION_AT_LEAST(14, 0, 0)
   Isolate* isolate = NewIsolate(allocator, loop, platform);
@@ -230,7 +232,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     fprintf(stderr, "%s: Failed to initialize V8 Isolate\n", args[0].c_str());
     return 1;
   }
-  boxednode::MarkTime("Created Isolate");
+  boxednode::MarkTime("Node.js Instance", "Created Isolate");
 
   {
     Locker locker(isolate);
@@ -246,7 +248,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
         ),
         node::FreeIsolateData);
 
-    boxednode::MarkTime("Created IsolateData");
+    boxednode::MarkTime("Node.js Instance", "Created IsolateData");
     HandleScope handle_scope(isolate);
     Local<Context> context;
 #ifndef BOXEDNODE_CONSUME_SNAPSHOT
@@ -262,7 +264,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     // node::LoadEnvironment() are being called.
     Context::Scope context_scope(context);
 #endif
-    boxednode::MarkTime("Created Context");
+    boxednode::MarkTime("Node.js Instance", "Created Context");
 
     // Create a node::Environment instance that will later be released using
     // node::FreeEnvironment().
@@ -276,7 +278,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     Context::Scope context_scope(context);
 #endif
     assert(isolate->InContext());
-    boxednode::MarkTime("Created Environment");
+    boxednode::MarkTime("Node.js Instance", "Created Environment");
 
     const void* node_mod;
     const void* napi_mod;
@@ -297,7 +299,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
         env.get(),
         "boxednode_linked_bindings",
         boxednode::boxednode_linked_bindings_register, nullptr);
-    boxednode::MarkTime("Added bindings");
+    boxednode::MarkTime("Boxednode Binding", "Added bindings");
 
     // Set up the Node.js instance for execution, and run code inside of it.
     // There is also a variant that takes a callback and provides it with
@@ -311,7 +313,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     if (LoadBoxednodeEnvironment(context).IsEmpty()) {
       return 1; // There has been a JS exception.
     }
-    boxednode::MarkTime("Loaded Environment, entering loop");
+    boxednode::MarkTime("Boxednode Binding", "Loaded Environment, entering loop");
 
     {
       // SealHandleScope protects against handle leaks from callbacks.
@@ -396,13 +398,13 @@ static int BoxednodeMain(std::vector<std::string> args) {
   if (args.size() > 1)
     args.insert(args.begin() + 1, "--openssl-shared-config");
 #endif
-  boxednode::MarkTime("Start InitializeOncePerProcess");
+  boxednode::MarkTime("Node.js Instance", "Start InitializeOncePerProcess");
   auto result = node::InitializeOncePerProcess(args, {
     node::ProcessInitializationFlags::kNoInitializeV8,
     node::ProcessInitializationFlags::kNoInitializeNodeV8Platform,
     node::ProcessInitializationFlags::kNoPrintHelpOrVersionOutput
   });
-  boxednode::MarkTime("Finished InitializeOncePerProcess");
+  boxednode::MarkTime("Node.js Instance", "Finished InitializeOncePerProcess");
   for (const std::string& error : result->errors())
     fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
   if (result->exit_code() != 0) {
@@ -427,7 +429,7 @@ static int BoxednodeMain(std::vector<std::string> args) {
   V8::InitializePlatform(platform.get());
   V8::Initialize();
 
-  boxednode::MarkTime("Initialized V8");
+  boxednode::MarkTime("Node.js Instance", "Initialized V8");
   // See below for the contents of this function.
   int ret = RunNodeInstance(platform.get(), args, exec_args);
 
@@ -476,7 +478,7 @@ int wmain(int argc, wchar_t* wargv[]) {
 int main(int argc, char** argv) {
   argv = uv_setup_args(argc, argv);
   std::vector<std::string> args(argv, argv + argc);
-  boxednode::MarkTime("Enter BoxednodeMain");
+  boxednode::MarkTime("Node.js Instance", "Enter BoxednodeMain");
   return BoxednodeMain(std::move(args));
 }
 #endif
