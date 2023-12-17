@@ -34,11 +34,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'cpp', 'javascript' ]
-        # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby', 'swift' ]
-        # Use only 'java' to analyze code written in Java, Kotlin or both
-        # Use only 'javascript' to analyze code written in JavaScript, TypeScript or both
-        # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
+        language:
+          - 'javascript'
+          # TODO: https://jira.mongodb.org/browse/COMPASS-7540, enable the cpp analysis.
+          # - 'cpp'
 
     steps:
     - name: Checkout repository
