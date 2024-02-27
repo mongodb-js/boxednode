@@ -217,10 +217,11 @@ describe('basic functionality', () => {
     it('works with snapshot support', async function () {
       this.timeout(2 * 60 * 60 * 1000); // 2 hours
       await compileJSFileAsBinary({
-        nodeVersionRange: 'v21.0.0-nightly20230801d396a041f7',
+        nodeVersionRange: '^21.6.2',
         sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
         targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
         useNodeSnapshot: true,
+        nodeSnapshotConfigFlags: ['WithoutCodeCache'],
         // the nightly path name is too long for Windows...
         tmpdir: process.platform === 'win32' ? path.join(os.tmpdir(), 'bn') : undefined
       });

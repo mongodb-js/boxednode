@@ -17,6 +17,7 @@
 #include <openssl/rsa.h>
 #include <openssl/rand.h>
 #endif
+#include <type_traits> // injected code may refer to std::underlying_type
 
 using namespace node;
 using namespace v8;
@@ -31,6 +32,11 @@ using namespace v8;
 // can be sure of its presence.
 #if NODE_VERSION_AT_LEAST(20, 0, 0)
 #define NODE_VERSION_SUPPORTS_EMBEDDER_SNAPSHOT 1
+#endif
+
+// Snapshot config is supported since https://github.com/nodejs/node/pull/50453
+#if NODE_VERSION_AT_LEAST(21, 6, 0) && !defined(BOXEDNODE_SNAPSHOT_CONFIG_FLAGS)
+#define BOXEDNODE_SNAPSHOT_CONFIG_FLAGS (SnapshotFlags::kWithoutCodeCache)
 #endif
 
 // 18.1.0 is the current minimum version that has https://github.com/nodejs/node/pull/42809,
@@ -167,7 +173,15 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
   int exit_code = 0;
   std::vector<std::string> errors;
   std::unique_ptr<CommonEnvironmentSetup> setup =
-      CommonEnvironmentSetup::CreateForSnapshotting(platform, &errors, args, exec_args);
+      CommonEnvironmentSetup::CreateForSnapshotting(
+          platform,
+          &errors,
+          args,
+          exec_args
+#ifdef BOXEDNODE_SNAPSHOT_CONFIG_FLAGS
+          , SnapshotConfig { BOXEDNODE_SNAPSHOT_CONFIG_FLAGS, std::nullopt }
+#endif
+          );
 
   Isolate* isolate = setup->isolate();
 

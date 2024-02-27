@@ -275,6 +275,7 @@ type CompilationOptions = {
   useLegacyDefaultUvLoop?: boolean;
   useCodeCache?: boolean,
   useNodeSnapshot?: boolean,
+  nodeSnapshotConfigFlags?: string[], // e.g. 'WithoutCodeCache'
   executableMetadata?: ExecutableMetadata,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
@@ -420,6 +421,14 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     }
     if (snapshotMode === 'consume') {
       mainSource = `#define BOXEDNODE_CONSUME_SNAPSHOT 1\n${mainSource}`;
+    }
+    if (options.nodeSnapshotConfigFlags) {
+      const flags = [
+        '0',
+        ...options.nodeSnapshotConfigFlags.map(flag =>
+          `static_cast<std::underlying_type<SnapshotFlags>::type>(SnapshotFlags::k${flag})`)
+      ].join(' | ');
+      mainSource = `#define BOXEDNODE_SNAPSHOT_CONFIG_FLAGS (static_cast<SnapshotFlags>(${flags}))\n${mainSource}`;
     }
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
     logger.stepCompleted();
