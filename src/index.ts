@@ -248,7 +248,7 @@ async function compileNode (
     // conflicting arguments have been passed manually.
     const vcbuildArgs: string[] = [...buildArgs, ...makeArgs, 'projgen'];
     if (!vcbuildArgs.includes('debug') && !vcbuildArgs.includes('release')) { vcbuildArgs.push('release'); }
-    if (!vcbuildArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2019'); }
+    if (!vcbuildArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2022'); }
 
     for (const module of linkedJSModules) {
       vcbuildArgs.push('link-module', module);
