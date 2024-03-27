@@ -35,7 +35,7 @@ using namespace v8;
 #endif
 
 // Snapshot config is supported since https://github.com/nodejs/node/pull/50453
-#if NODE_VERSION_AT_LEAST(21, 6, 0) && !defined(BOXEDNODE_SNAPSHOT_CONFIG_FLAGS)
+#if NODE_VERSION_AT_LEAST(20, 12, 0) && !defined(BOXEDNODE_SNAPSHOT_CONFIG_FLAGS)
 #define BOXEDNODE_SNAPSHOT_CONFIG_FLAGS (SnapshotFlags::kWithoutCodeCache)
 #endif
 
