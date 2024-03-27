@@ -36,8 +36,7 @@ jobs:
       matrix:
         language:
           - 'javascript'
-          # TODO: https://jira.mongodb.org/browse/COMPASS-7540, enable the cpp analysis.
-          # - 'cpp'
+          - 'cpp'
 
     steps:
     - name: Checkout repository
@@ -78,7 +77,7 @@ jobs:
     - name: Build cpp
       if: matrix.language == 'cpp'
       run: |
-        node bin/boxednode.js -s test/resources/example.js -t example
+        ./test/compile-main-template-only.sh
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2

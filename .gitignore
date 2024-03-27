@@ -22,3 +22,4 @@ tmp/
 .esm-wrapper.mjs
 /lib/
 package-lock.json
+main-template-build
