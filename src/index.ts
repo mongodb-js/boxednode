@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
 import { ExecutableMetadata, generateRCFile } from './executable-metadata';
-import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition, createCompressedBlobDefinition } from './helpers';
+import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition, createCompressedBlobDefinition, createUncompressedBlobDefinition } from './helpers';
 import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
 import { fileURLToPath, URL } from 'url';
@@ -275,6 +275,7 @@ type CompilationOptions = {
   useLegacyDefaultUvLoop?: boolean;
   useCodeCache?: boolean,
   useNodeSnapshot?: boolean,
+  compressBlobs?: boolean,
   nodeSnapshotConfigFlags?: string[], // e.g. 'WithoutCodeCache'
   executableMetadata?: ExecutableMetadata,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
@@ -387,6 +388,10 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     logger.stepCompleted();
   }
 
+  const createBlobDefinition = options.compressBlobs
+    ? createCompressedBlobDefinition
+    : createUncompressedBlobDefinition;
+
   async function writeMainFileAndCompile ({
     codeCacheBlob = new Uint8Array(0),
     codeCacheMode = 'ignore',
@@ -409,8 +414,8 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       registerFunctions.map((fn) => `${fn},`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER\b/g,
       createCppJsStringDefinition('GetBoxednodeMainScriptSource', snapshotMode !== 'consume' ? jsMainSource : '') + '\n' +
-      await createCompressedBlobDefinition('GetBoxednodeCodeCache', codeCacheBlob) + '\n' +
-      await createCompressedBlobDefinition('GetBoxednodeSnapshotBlob', snapshotBlob));
+      await createBlobDefinition('GetBoxednodeCodeCache', codeCacheBlob) + '\n' +
+      await createBlobDefinition('GetBoxednodeSnapshotBlob', snapshotBlob));
     mainSource = mainSource.replace(/\bBOXEDNODE_CODE_CACHE_MODE\b/g,
       JSON.stringify(codeCacheMode));
     if (options.useLegacyDefaultUvLoop) {

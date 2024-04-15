@@ -214,30 +214,33 @@ describe('basic functionality', () => {
       }
     });
 
-    it('works with snapshot support', async function () {
-      this.timeout(2 * 60 * 60 * 1000); // 2 hours
-      await compileJSFileAsBinary({
-        nodeVersionRange: '^21.6.2',
-        sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
-        targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
-        useNodeSnapshot: true,
-        nodeSnapshotConfigFlags: ['WithoutCodeCache'],
-        // the nightly path name is too long for Windows...
-        tmpdir: process.platform === 'win32' ? path.join(os.tmpdir(), 'bn') : undefined
-      });
+    for (const compressBlobs of [false, true]) {
+      it(`works with snapshot support (compressBlobs = ${compressBlobs})`, async function () {
+        this.timeout(2 * 60 * 60 * 1000); // 2 hours
+        await compileJSFileAsBinary({
+          nodeVersionRange: '^21.6.2',
+          sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
+          targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
+          useNodeSnapshot: true,
+          compressBlobs,
+          nodeSnapshotConfigFlags: ['WithoutCodeCache'],
+          // the nightly path name is too long for Windows...
+          tmpdir: process.platform === 'win32' ? path.join(os.tmpdir(), 'bn') : undefined
+        });
 
-      {
-        const { stdout } = await execFile(
-          path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`), ['a', 'b', 'c'],
-          { encoding: 'utf8' });
-        const { currentArgv, originalArgv, timingData } = JSON.parse(stdout);
-        assert(currentArgv[0].includes('snapshot-echo-args'));
-        assert(currentArgv[1].includes('snapshot-echo-args'));
-        assert.deepStrictEqual(currentArgv.slice(2), ['a', 'b', 'c']);
-        assert.strictEqual(originalArgv.length, 2); // [execPath, execPath]
-        assert.strictEqual(timingData[0][0], 'Node.js Instance');
-        assert.strictEqual(timingData[0][1], 'Process initialization');
-      }
-    });
+        {
+          const { stdout } = await execFile(
+            path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`), ['a', 'b', 'c'],
+            { encoding: 'utf8' });
+          const { currentArgv, originalArgv, timingData } = JSON.parse(stdout);
+          assert(currentArgv[0].includes('snapshot-echo-args'));
+          assert(currentArgv[1].includes('snapshot-echo-args'));
+          assert.deepStrictEqual(currentArgv.slice(2), ['a', 'b', 'c']);
+          assert.strictEqual(originalArgv.length, 2); // [execPath, execPath]
+          assert.strictEqual(timingData[0][0], 'Node.js Instance');
+          assert.strictEqual(timingData[0][1], 'Process initialization');
+        }
+      });
+    }
   });
 });
