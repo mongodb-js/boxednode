@@ -224,7 +224,7 @@ async function compileNode (
         }
         let source = await fs.readFile(target, 'utf8');
         source = source.replace(/-static/g, '');
-        await fs.writeFile(target, 'utf8');
+        await fs.writeFile(target, source);
       }
     }
 
