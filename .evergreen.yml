@@ -14,7 +14,7 @@ functions:
           set -e
           set -x
 
-          export NODE_VERSION=20.5.0
+          export NODE_VERSION=20.13.0
           bash .evergreen/install-node.sh
   install:
     - command: shell.exec
@@ -106,7 +106,7 @@ tasks:
       - func: install
       - func: test
         vars:
-          node_version: "20.5.0"
+          node_version: "20.13.0"
   - name: check
     commands:
       - func: checkout

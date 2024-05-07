@@ -113,6 +113,15 @@ export async function createUncompressedBlobDefinition (fnName: string, source: 
     ${Uint8Array.prototype.toString.call(source) || '0'}
   };
 
+  std::optional<std::string_view> ${fnName}SV() {
+    return {
+      {
+        reinterpret_cast<const char*>(&${fnName}_source_[0]),
+        ${source.length}
+      }
+    };
+  }
+
   std::vector<char> ${fnName}Vector() {
     return std::vector<char>(
       reinterpret_cast<const char*>(&${fnName}_source_[0]),
@@ -153,6 +162,10 @@ export async function createCompressedBlobDefinition (fnName: string, source: Ui
     std::vector<char> dst(${source.length});
     ${fnName}_Read(&dst[0]);
     return dst;`}
+  }
+
+  std::optional<std::string_view> ${fnName}SV() {
+    return {};
   }
 
   ${blobTypedArrayAccessors(fnName, source.length)}
