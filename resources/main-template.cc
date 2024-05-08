@@ -88,7 +88,9 @@ void MarkTime(const char* category, const char* label) {
 Local<String> GetBoxednodeMainScriptSource(Isolate* isolate);
 Local<Uint8Array> GetBoxednodeCodeCacheBuffer(Isolate* isolate);
 std::vector<char> GetBoxednodeSnapshotBlobVector();
+#ifdef NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT
 std::optional<std::string_view> GetBoxednodeSnapshotBlobSV();
+#endif
 
 void GetTimingData(const FunctionCallbackInfo<Value>& info) {
   Isolate* isolate = info.GetIsolate();
