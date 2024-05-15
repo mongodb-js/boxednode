@@ -18,6 +18,7 @@
 #include <openssl/rand.h>
 #endif
 #include <type_traits> // injected code may refer to std::underlying_type
+#include <optional>
 
 using namespace node;
 using namespace v8;
@@ -32,6 +33,12 @@ using namespace v8;
 // can be sure of its presence.
 #if NODE_VERSION_AT_LEAST(20, 0, 0)
 #define NODE_VERSION_SUPPORTS_EMBEDDER_SNAPSHOT 1
+#endif
+
+// 20.13.0 has https://github.com/nodejs/node/pull/52595 for better startup snapshot
+// initialization performance.
+#if NODE_VERSION_AT_LEAST(20, 13, 0)
+#define NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT 1
 #endif
 
 // Snapshot config is supported since https://github.com/nodejs/node/pull/50453
@@ -81,6 +88,9 @@ void MarkTime(const char* category, const char* label) {
 Local<String> GetBoxednodeMainScriptSource(Isolate* isolate);
 Local<Uint8Array> GetBoxednodeCodeCacheBuffer(Isolate* isolate);
 std::vector<char> GetBoxednodeSnapshotBlobVector();
+#ifdef NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT
+std::optional<std::string_view> GetBoxednodeSnapshotBlobSV();
+#endif
 
 void GetTimingData(const FunctionCallbackInfo<Value>& info) {
   Isolate* isolate = info.GetIsolate();
@@ -230,11 +240,18 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
       ArrayBufferAllocator::Create();
 
 #ifdef BOXEDNODE_CONSUME_SNAPSHOT
-  std::vector<char> snapshot_blob_vec = boxednode::GetBoxednodeSnapshotBlobVector();
-  boxednode::MarkTime("Node.js Instance", "Decoded snapshot");
   assert(EmbedderSnapshotData::CanUseCustomSnapshotPerIsolate());
-  node::EmbedderSnapshotData::Pointer snapshot_blob =
-    EmbedderSnapshotData::FromBlob(snapshot_blob_vec);
+  node::EmbedderSnapshotData::Pointer snapshot_blob;
+#ifdef NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT
+  if (const auto snapshot_blob_sv = boxednode::GetBoxednodeSnapshotBlobSV()) {
+    snapshot_blob = EmbedderSnapshotData::FromBlob(snapshot_blob_sv.value());
+  }
+#endif
+  if (!snapshot_blob) {
+    std::vector<char> snapshot_blob_vec = boxednode::GetBoxednodeSnapshotBlobVector();
+    boxednode::MarkTime("Node.js Instance", "Decoded snapshot");
+    snapshot_blob = EmbedderSnapshotData::FromBlob(snapshot_blob_vec);
+  }
   boxednode::MarkTime("Node.js Instance", "Read snapshot");
   Isolate* isolate = NewIsolate(allocator, loop, platform, snapshot_blob.get());
 #elif NODE_VERSION_AT_LEAST(14, 0, 0)

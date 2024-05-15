@@ -218,7 +218,7 @@ describe('basic functionality', () => {
       it(`works with snapshot support (compressBlobs = ${compressBlobs})`, async function () {
         this.timeout(2 * 60 * 60 * 1000); // 2 hours
         await compileJSFileAsBinary({
-          nodeVersionRange: '^21.6.2',
+          nodeVersionRange: '^20.13.0',
           sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
           targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
           useNodeSnapshot: true,
