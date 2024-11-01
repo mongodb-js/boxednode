@@ -46,10 +46,6 @@ functions:
         shell: bash
         env:
           TEST_NODE_VERSION: ${node_version}
-          OKTA_TEST_CONFIG: ${okta_test_config}
-          OKTA_TEST_CREDENTIALS: ${okta_test_credentials}
-          AZURE_TEST_CONFIG: ${azure_test_config}
-          AZURE_TEST_CREDENTIALS: ${azure_test_credentials}
           DISTRO_ID: ${distro_id}
         script: |
           set -e
@@ -75,22 +71,6 @@ functions:
           TEST_NODE_VERSION="$TEST_NODE_VERSION" npm run test-ci
 
 tasks:
-  - name: test_n14
-    commands:
-      - func: checkout
-      - func: install_node
-      - func: install
-      - func: test
-        vars:
-          node_version: "14.21.3"
-  - name: test_n16
-    commands:
-      - func: checkout
-      - func: install_node
-      - func: install
-      - func: test
-        vars:
-          node_version: "16.20.1"
   - name: test_n18
     commands:
       - func: checkout
@@ -107,6 +87,14 @@ tasks:
       - func: test
         vars:
           node_version: "20.13.0"
+  - name: test_n22
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "22.11.0"
   - name: check
     commands:
       - func: checkout
@@ -119,32 +107,28 @@ buildvariants:
     display_name: 'Ubuntu 20.04 x64'
     run_on: ubuntu2004-large
     tasks:
-      - test_n14
-      - test_n16
       - test_n18
       - test_n20
+      - test_n22
       - check
   - name: macos_x64_test
-    display_name: 'macOS 11.00 x64'
-    run_on: macos-1100
+    display_name: 'macOS 14 x64'
+    run_on: macos-14
     tasks:
-      - test_n14
-      - test_n16
       - test_n18
       - test_n20
+      - test_n22
   - name: macos_arm64_test
-    display_name: 'macOS 11.00 arm64'
-    run_on: macos-1100-arm64
+    display_name: 'macOS 14 arm64'
+    run_on: macos-14-arm64
     tasks:
-      - test_n14
-      - test_n16
       - test_n18
       - test_n20
+      - test_n22
   - name: windows_x64_test
     display_name: 'Windows x64'
     run_on: windows-vsCurrent-2022-large
     tasks:
-      - test_n14
-      - test_n16
       - test_n18
       - test_n20
+      - test_n22
