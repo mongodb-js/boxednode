@@ -107,6 +107,32 @@ export function createCppJsStringDefinition (fnName: string, source: string): st
   `;
 }
 
+export async function createUncompressedBlobDefinition (fnName: string, source: Uint8Array): Promise<string> {
+  return `
+  static const uint8_t ${fnName}_source_[] = {
+    ${Uint8Array.prototype.toString.call(source) || '0'}
+  };
+
+#ifdef NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT
+  std::optional<std::string_view> ${fnName}SV() {
+    return {
+      {
+        reinterpret_cast<const char*>(&${fnName}_source_[0]),
+        ${source.length}
+      }
+    };
+  }
+#endif
+
+  std::vector<char> ${fnName}Vector() {
+    return std::vector<char>(
+      reinterpret_cast<const char*>(&${fnName}_source_[0]),
+      reinterpret_cast<const char*>(&${fnName}_source_[${source.length}]));
+  }
+
+  ${blobTypedArrayAccessors(fnName, source.length)}`;
+}
+
 export async function createCompressedBlobDefinition (fnName: string, source: Uint8Array): Promise<string> {
   const compressed = await promisify(zlib.brotliCompress)(source, {
     params: {
@@ -133,13 +159,6 @@ export async function createCompressedBlobDefinition (fnName: string, source: Ui
     assert(decoded_size == ${source.length});
   }
 
-  std::string ${fnName}() {
-    ${source.length === 0 ? 'return {};' : `
-    std::string dst(${source.length}, 0);
-    ${fnName}_Read(&dst[0]);
-    return dst;`}
-  }
-
   std::vector<char> ${fnName}Vector() {
     ${source.length === 0 ? 'return {};' : `
     std::vector<char> dst(${source.length});
@@ -147,19 +166,31 @@ export async function createCompressedBlobDefinition (fnName: string, source: Ui
     return dst;`}
   }
 
+#ifdef NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT
+  std::optional<std::string_view> ${fnName}SV() {
+    return {};
+  }
+#endif
+
+  ${blobTypedArrayAccessors(fnName, source.length)}
+  `;
+}
+
+function blobTypedArrayAccessors (fnName: string, sourceLength: number): string {
+  return `
   std::shared_ptr<v8::BackingStore> ${fnName}BackingStore() {
-    std::string* str = new std::string(std::move(${fnName}()));
+    std::vector<char>* str = new std::vector<char>(std::move(${fnName}Vector()));
     return v8::SharedArrayBuffer::NewBackingStore(
       &str->front(),
       str->size(),
       [](void*, size_t, void* deleter_data) {
-        delete static_cast<std::string*>(deleter_data);
+        delete static_cast<std::vector<char>*>(deleter_data);
       },
       static_cast<void*>(str));
   }
 
   v8::Local<v8::Uint8Array> ${fnName}Buffer(v8::Isolate* isolate) {
-    ${source.length === 0 ? `
+    ${sourceLength === 0 ? `
     auto array_buffer = v8::SharedArrayBuffer::New(isolate, 0);
     ` : `
     auto array_buffer = v8::SharedArrayBuffer::New(isolate, ${fnName}BackingStore());

@@ -6,3 +6,4 @@ test/
 .evergreen.yml
 tsconfig.json
 .eslintrc
+main-template-build/

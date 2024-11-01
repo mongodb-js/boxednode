@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
 import { ExecutableMetadata, generateRCFile } from './executable-metadata';
-import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition, createCompressedBlobDefinition } from './helpers';
+import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition, createCompressedBlobDefinition, createUncompressedBlobDefinition } from './helpers';
 import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
 import { fileURLToPath, URL } from 'url';
@@ -224,7 +224,7 @@ async function compileNode (
         }
         let source = await fs.readFile(target, 'utf8');
         source = source.replace(/-static/g, '');
-        await fs.writeFile(target, 'utf8');
+        await fs.writeFile(target, source);
       }
     }
 
@@ -253,7 +253,7 @@ async function compileNode (
     for (const module of linkedJSModules) {
       vcbuildArgs.push('link-module', module);
     }
-    await spawnBuildCommand(['.\\vcbuild.bat', ...vcbuildArgs], options);
+    await spawnBuildCommand(['cmd', '/c', '.\\vcbuild.bat', ...vcbuildArgs], options);
 
     return path.join(sourcePath, 'Release', 'node.exe');
   }
@@ -275,6 +275,8 @@ type CompilationOptions = {
   useLegacyDefaultUvLoop?: boolean;
   useCodeCache?: boolean,
   useNodeSnapshot?: boolean,
+  compressBlobs?: boolean,
+  nodeSnapshotConfigFlags?: string[], // e.g. 'WithoutCodeCache'
   executableMetadata?: ExecutableMetadata,
   preCompileHook?: (nodeSourceTree: string, options: CompilationOptions) => void | Promise<void>
 }
@@ -386,6 +388,10 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     logger.stepCompleted();
   }
 
+  const createBlobDefinition = options.compressBlobs
+    ? createCompressedBlobDefinition
+    : createUncompressedBlobDefinition;
+
   async function writeMainFileAndCompile ({
     codeCacheBlob = new Uint8Array(0),
     codeCacheMode = 'ignore',
@@ -408,8 +414,8 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       registerFunctions.map((fn) => `${fn},`).join(''));
     mainSource = mainSource.replace(/\bREPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER\b/g,
       createCppJsStringDefinition('GetBoxednodeMainScriptSource', snapshotMode !== 'consume' ? jsMainSource : '') + '\n' +
-      await createCompressedBlobDefinition('GetBoxednodeCodeCache', codeCacheBlob) + '\n' +
-      await createCompressedBlobDefinition('GetBoxednodeSnapshotBlob', snapshotBlob));
+      await createBlobDefinition('GetBoxednodeCodeCache', codeCacheBlob) + '\n' +
+      await createBlobDefinition('GetBoxednodeSnapshotBlob', snapshotBlob));
     mainSource = mainSource.replace(/\bBOXEDNODE_CODE_CACHE_MODE\b/g,
       JSON.stringify(codeCacheMode));
     if (options.useLegacyDefaultUvLoop) {
@@ -420,6 +426,14 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     }
     if (snapshotMode === 'consume') {
       mainSource = `#define BOXEDNODE_CONSUME_SNAPSHOT 1\n${mainSource}`;
+    }
+    if (options.nodeSnapshotConfigFlags) {
+      const flags = [
+        '0',
+        ...options.nodeSnapshotConfigFlags.map(flag =>
+          `static_cast<std::underlying_type<SnapshotFlags>::type>(SnapshotFlags::k${flag})`)
+      ].join(' | ');
+      mainSource = `#define BOXEDNODE_SNAPSHOT_CONFIG_FLAGS (static_cast<SnapshotFlags>(${flags}))\n${mainSource}`;
     }
     await fs.writeFile(path.join(nodeSourcePath, 'src', 'node_main.cc'), mainSource);
     logger.stepCompleted();

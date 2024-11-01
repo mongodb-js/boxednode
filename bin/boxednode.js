@@ -54,7 +54,8 @@ const argv = require('yargs')
       namespace: argv.N,
       useLegacyDefaultUvLoop: argv.useLegacyDefaultUvLoop,
       useCodeCache: argv.H,
-      useNodeSnapshot: argv.S
+      useNodeSnapshot: argv.S,
+      compressBlobs: argv.Z
     });
   } catch (err) {
     console.error(err);
