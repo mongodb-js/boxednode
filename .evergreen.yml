@@ -66,6 +66,10 @@ functions:
             export BOXEDNODE_CONFIGURE_ARGS='--openssl-no-asm'
           fi
 
+          if [ "$OS" != "Windows_NT" ]; then
+            export PATH="/opt/mongodbtoolchain/v4/bin:$PATH"
+          fi
+
           . .evergreen/use-node.sh
           npm run build
           TEST_NODE_VERSION="$TEST_NODE_VERSION" npm run test-ci
