@@ -3,11 +3,14 @@
 set -e
 set -x
 
+# so we use the devtools binaries first (for gcc/g++)
+export PATH="/opt/devtools/bin:$PATH"
+
 export BASEDIR="$PWD"
 mkdir -p .deps
 cd .deps
 
-NVM_URL="https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh"
+NVM_URL="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh"
 
 # this needs to be explicitly exported for the nvm install below
 export NVM_DIR="$PWD/nvm"

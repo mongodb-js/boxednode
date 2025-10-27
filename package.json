@@ -11,7 +11,7 @@
     "boxednode": "bin/boxednode.js"
   },
   "engines": {
-    "node": ">= 22.21.0"
+    "node": ">= 20.19.5"
   },
   "scripts": {
     "lint": "eslint **/*.ts bin/*.js",

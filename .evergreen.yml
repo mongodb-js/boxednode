@@ -118,14 +118,14 @@ buildvariants:
       - check
   - name: macos_x64_test
     display_name: 'macOS 11.00 x64'
-    run_on: macos-1100
+    run_on: macos-13
     tasks:
       - test_n20
       - test_n22
       - test_n24
   - name: macos_arm64_test
     display_name: 'macOS 11.00 arm64'
-    run_on: macos-1100-arm64
+    run_on: macos-13-arm64
     tasks:
       - test_n20
       - test_n22
