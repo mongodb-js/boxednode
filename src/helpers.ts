@@ -179,7 +179,7 @@ export async function createCompressedBlobDefinition (fnName: string, source: Ui
 function blobTypedArrayAccessors (fnName: string, sourceLength: number): string {
   return `
   std::shared_ptr<v8::BackingStore> ${fnName}BackingStore() {
-    std::vector<char>* str = new std::vector<char>(std::move(${fnName}Vector()));
+    std::vector<char>* str = new std::vector<char>(${fnName}Vector());
     return v8::SharedArrayBuffer::NewBackingStore(
       &str->front(),
       str->size(),
