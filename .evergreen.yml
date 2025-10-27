@@ -14,7 +14,7 @@ functions:
           set -e
           set -x
 
-          export NODE_VERSION=20.13.0
+          export NODE_VERSION=24.10.0
           bash .evergreen/install-node.sh
   install:
     - command: shell.exec
@@ -75,30 +75,6 @@ functions:
           TEST_NODE_VERSION="$TEST_NODE_VERSION" npm run test-ci
 
 tasks:
-  - name: test_n14
-    commands:
-      - func: checkout
-      - func: install_node
-      - func: install
-      - func: test
-        vars:
-          node_version: "14.21.3"
-  - name: test_n16
-    commands:
-      - func: checkout
-      - func: install_node
-      - func: install
-      - func: test
-        vars:
-          node_version: "16.20.1"
-  - name: test_n18
-    commands:
-      - func: checkout
-      - func: install_node
-      - func: install
-      - func: test
-        vars:
-          node_version: "18.17.0"
   - name: test_n20
     commands:
       - func: checkout
@@ -106,7 +82,24 @@ tasks:
       - func: install
       - func: test
         vars:
-          node_version: "20.13.0"
+          node_version: "20.19.5"
+  - name: test_n22
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "22.21.0"
+  - name: test_n24
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "24.10.0"
+          
   - name: check
     commands:
       - func: checkout
@@ -119,32 +112,28 @@ buildvariants:
     display_name: 'Ubuntu 20.04 x64'
     run_on: ubuntu2004-large
     tasks:
-      - test_n14
-      - test_n16
-      - test_n18
       - test_n20
+      - test_n22
+      - test_n24
       - check
   - name: macos_x64_test
     display_name: 'macOS 11.00 x64'
     run_on: macos-1100
     tasks:
-      - test_n14
-      - test_n16
-      - test_n18
       - test_n20
+      - test_n22
+      - test_n24
   - name: macos_arm64_test
     display_name: 'macOS 11.00 arm64'
     run_on: macos-1100-arm64
     tasks:
-      - test_n14
-      - test_n16
-      - test_n18
       - test_n20
+      - test_n22
+      - test_n24
   - name: windows_x64_test
     display_name: 'Windows x64'
     run_on: windows-vsCurrent-xlarge
     tasks:
-      - test_n14
-      - test_n16
-      - test_n18
       - test_n20
+      - test_n22
+      - test_n24

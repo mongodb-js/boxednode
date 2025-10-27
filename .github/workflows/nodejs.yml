@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node-version: [14.x, 16.x, 18.x, 20.x]
+        node-version: [20.x, 22.x, 24.x]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -22,9 +22,6 @@ jobs:
         with:
           check-latest: true
           node-version: ${{ matrix.node-version }}
-      - name: Install npm@8.x
-        if: ${{ matrix.node-version == '14.x' }}
-        run: npm install -g npm@8.x
       - name: Install Dependencies
         run: npm install
       - name: Test
