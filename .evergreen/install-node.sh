@@ -25,7 +25,7 @@ if [[ "$OS" == "Windows_NT" ]]; then
   chmod a+x node/bin/*
   export PATH="$PWD/node/bin:$PATH"
 else
-    if [ uname = "Darwin" ] ; then # install Node.js on MacOS
+    if [ "$(uname -s)" == "Darwin" ] ; then # install Node.js on MacOS
 	curl -o- $NVM_URL | bash
 	set +x
 	[ -s "${NVM_DIR}/nvm.sh" ] && source "${NVM_DIR}/nvm.sh"
