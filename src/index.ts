@@ -191,19 +191,6 @@ async function compileNode (
     env: env
   };
 
-  // Node.js 19.4.0 is currently the minimum version that has https://github.com/nodejs/node/pull/45887.
-  // We want to disable the shared-ro-heap flag since it would require
-  // all snapshots used by Node.js to be equal, something that we don't
-  // want to or need to guarantee as embedders.
-  const nodeVersion = await getNodeVersionFromSourceDirectory(sourcePath);
-  if (nodeVersion[0] > 19 || (nodeVersion[0] === 19 && nodeVersion[1] >= 4)) {
-    if (process.platform !== 'win32') {
-      buildArgs = ['--disable-shared-readonly-heap', ...buildArgs];
-    } else {
-      buildArgs = ['no-shared-roheap', ...buildArgs];
-    }
-  }
-
   if (process.platform !== 'win32') {
     const configure: string[] = ['./configure', ...buildArgs];
     for (const module of linkedJSModules) {
