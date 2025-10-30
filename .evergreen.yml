@@ -21,8 +21,6 @@ functions:
       params:
         working_dir: src
         shell: bash
-        env:
-          NODE_VERSION: ${node_version}
         script: |
           set -e
           set -x
@@ -49,7 +47,6 @@ functions:
         working_dir: src
         shell: bash
         env:
-          NODE_VERSION: ${node_version}
           TEST_NODE_VERSION: ${node_version}
           OKTA_TEST_CONFIG: ${okta_test_config}
           OKTA_TEST_CREDENTIALS: ${okta_test_credentials}

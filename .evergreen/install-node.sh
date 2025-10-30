@@ -32,7 +32,8 @@ else
 	nvm install --no-progress "$NODE_VERSION"
     else # Linux already has its own toolchain in evergreen
 	NODE_MAJOR=$(echo $NODE_VERSION | awk -F . '{print $1}')
-	export PATH="/opt/devtools/node$NODE_MAJOR/bin:$PATH"
+	ln -s "/opt/devtools/node$NODE_MAJOR/bin/" "$PWD/node/bin"
+	export PATH="$PWD/node/bin:$PATH"
     fi
 fi
 
