@@ -30,7 +30,7 @@ else
 	set +x
 	[ -s "${NVM_DIR}/nvm.sh" ] && source "${NVM_DIR}/nvm.sh"
 	nvm install --no-progress "$NODE_VERSION"
-    else # Linux already has it's own toolchain in evergreen
+    else # Linux already has its own toolchain in evergreen
 	NODE_MAJOR=$(echo $NODE_VERSION | awk -F . '{print $1}')
 	export PATH="/opt/devtools/node$NODE_MAJOR/bin:$PATH"
     fi
