@@ -24,12 +24,16 @@ if [[ "$OS" == "Windows_NT" ]]; then
   mv -v node-v$NODE_VERSION-win-x64/* node/bin
   chmod a+x node/bin/*
   export PATH="$PWD/node/bin:$PATH"
-# install Node.js on Linux/MacOS
 else
-  curl -o- $NVM_URL | bash
-  set +x
-  [ -s "${NVM_DIR}/nvm.sh" ] && source "${NVM_DIR}/nvm.sh"
-  nvm install --no-progress "$NODE_VERSION"
+    if [ uname = "Darwin" ] ; then # install Node.js on MacOS
+	curl -o- $NVM_URL | bash
+	set +x
+	[ -s "${NVM_DIR}/nvm.sh" ] && source "${NVM_DIR}/nvm.sh"
+	nvm install --no-progress "$NODE_VERSION"
+    else # Linux already has it's own toolchain in evergreen
+	NODE_MAJOR=$(echo $NODE_VERSION | awk -F . '{print $1}')
+	export PATH="/opt/devtools/node$NODE_MAJOR/bin:$PATH"
+    fi
 fi
 
 which node && node -v || echo "node not found, PATH=$PATH"
