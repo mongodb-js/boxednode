@@ -15,6 +15,7 @@ if [ ! -e main-template-build ]; then
 fi
 
 g++ \
+  -Imain-template-build/deps/brotli/c/include/ \
   -Imain-template-build/src \
   -Imain-template-build/deps/v8/include \
   -Imain-template-build/deps/uv/include \
