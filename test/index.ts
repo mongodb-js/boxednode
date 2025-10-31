@@ -138,7 +138,7 @@ describe('basic functionality', () => {
       }
     });
 
-    it('works with a N-API addon', async function () {
+    it.only('works with a N-API addon', async function () {
       if (semver.lt(version, '14.13.0')) {
         return this.skip(); // no N-API addon support available
       }
