@@ -194,9 +194,9 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
           );
 
   Isolate* isolate = setup->isolate();
+  Locker locker(isolate);
 
   {
-    Locker locker(isolate);
     Isolate::Scope isolate_scope(isolate);
 
     HandleScope handle_scope(isolate);
@@ -387,8 +387,14 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
   platform->AddIsolateFinishedCallback(isolate, [](void* data) {
     *static_cast<bool*>(data) = true;
   }, &platform_finished);
-  platform->UnregisterIsolate(isolate);
+
+  // https://github.com/nodejs/node/commit/5d3e1b555c0902db1e99577a3429cffedcf3bbdc
+#if NODE_VERSION_AT_LEAST(24, 0, 0)
+  platform->DisposeIsolate(isolate);
+#else
   isolate->Dispose();
+  platform->UnregisterIsolate(isolate);
+#endif
 
   // Wait until the platform has cleaned up all relevant resources.
   while (!platform_finished)
