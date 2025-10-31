@@ -240,7 +240,6 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
       ArrayBufferAllocator::Create();
 
 #ifdef BOXEDNODE_CONSUME_SNAPSHOT
-  assert(EmbedderSnapshotData::CanUseCustomSnapshotPerIsolate());
   node::EmbedderSnapshotData::Pointer snapshot_blob;
 #ifdef NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT
   if (const auto snapshot_blob_sv = boxednode::GetBoxednodeSnapshotBlobSV()) {
