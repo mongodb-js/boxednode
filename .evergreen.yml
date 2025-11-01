@@ -53,6 +53,7 @@ functions:
           AZURE_TEST_CONFIG: ${azure_test_config}
           AZURE_TEST_CREDENTIALS: ${azure_test_credentials}
           DISTRO_ID: ${distro_id}
+          BOXEDNODE_DCHECKS_ENABLED: ${dchecks_enabled}
         script: |
           set -e
           set -x
@@ -101,7 +102,35 @@ tasks:
       - func: test
         vars:
           node_version: "24.10.0"
-          
+
+  - name: test_n20_dchecks
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "20.19.5"
+          dchecks_enabled: 1
+  - name: test_n22_dchecks
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "22.21.0"
+          dchecks_enabled: 1
+  - name: test_n24_dchecks
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "24.10.0"
+          dchecks_enabled: 1
+
   - name: check
     commands:
       - func: checkout
@@ -118,16 +147,24 @@ buildvariants:
       - test_n22
       - test_n24
       - check
+  - name: amazon_arm64_dchecks
+    display_name: 'Amazon Linux 2023 arm64 (Node.js/V8 DCHECKs)'
+    run_on: amazon2023.3-arm64-xxlarge
+    tasks:
+      - test_n20_dchecks
+      - test_n22_dchecks
+      - test_n24_dchecks
+      - check
   - name: macos_x64_test
-    display_name: 'macOS 13.00 x64'
-    run_on: macos-13
+    display_name: 'macOS 14.00 x64'
+    run_on: macos-14
     tasks:
       - test_n20
       - test_n22
       - test_n24
   - name: macos_arm64_test
-    display_name: 'macOS 13.00 arm64'
-    run_on: macos-13-arm64
+    display_name: 'macOS 14.00 arm64'
+    run_on: macos-14-arm64
     tasks:
       - test_n20
       - test_n22

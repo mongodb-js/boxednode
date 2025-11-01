@@ -191,6 +191,10 @@ async function compileNode (
     env: env
   };
 
+  if (process.env.BOXEDNODE_DCHECKS_ENABLED === '1') {
+    buildArgs = ['--debug-node', '--v8-with-dchecks', ...buildArgs];
+  }
+
   if (process.platform !== 'win32') {
     const configure: string[] = ['./configure', ...buildArgs];
     for (const module of linkedJSModules) {
