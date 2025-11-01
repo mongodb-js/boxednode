@@ -147,14 +147,13 @@ buildvariants:
       - test_n22
       - test_n24
       - check
-  - name: amazon_arm64_dchecks
-    display_name: 'Amazon Linux 2023 arm64 (Node.js/V8 DCHECKs)'
-    run_on: amazon2023.3-arm64-xxlarge
+  - name: ubuntu_arm64_dchecks
+    display_name: 'Ubuntu 24.04 arm64 (Node.js/V8 DCHECKs)'
+    run_on: ubuntu2404-arm64-latest-xlarge
     tasks:
       - test_n20_dchecks
       - test_n22_dchecks
       - test_n24_dchecks
-      - check
   - name: macos_x64_test
     display_name: 'macOS 14.00 x64'
     run_on: macos-14
