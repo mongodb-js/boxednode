@@ -23,46 +23,11 @@
 using namespace node;
 using namespace v8;
 
-// 18.11.0 is the minimum version that has https://github.com/nodejs/node/pull/44121
-#if !NODE_VERSION_AT_LEAST(18, 11, 0)
-#define USE_OWN_LEGACY_PROCESS_INITIALIZATION 1
-#endif
-
-// 20.0.0 will have https://github.com/nodejs/node/pull/45888, possibly the PR
-// will be backported to older versions but for now this is the one where we
-// can be sure of its presence.
-#if NODE_VERSION_AT_LEAST(20, 0, 0)
-#define NODE_VERSION_SUPPORTS_EMBEDDER_SNAPSHOT 1
-#endif
-
-// 20.13.0 has https://github.com/nodejs/node/pull/52595 for better startup snapshot
-// initialization performance.
-#if NODE_VERSION_AT_LEAST(20, 13, 0)
-#define NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT 1
-#endif
-
 // Snapshot config is supported since https://github.com/nodejs/node/pull/50453
-#if NODE_VERSION_AT_LEAST(20, 12, 0) && !defined(BOXEDNODE_SNAPSHOT_CONFIG_FLAGS)
+#ifndef BOXEDNODE_SNAPSHOT_CONFIG_FLAGS
 #define BOXEDNODE_SNAPSHOT_CONFIG_FLAGS (SnapshotFlags::kWithoutCodeCache)
 #endif
 
-// 18.1.0 is the current minimum version that has https://github.com/nodejs/node/pull/42809,
-// which introduced crashes when using workers, and later 18.9.0 is the current
-// minimum version to contain https://github.com/nodejs/node/pull/44252, which
-// introcued crashes when using the vm module.
-// We should be able to remove this restriction again once Node.js stops relying
-// on global state for determining whether snapshots are enabled or not
-// (after https://github.com/nodejs/node/pull/45888, hopefully).
-#if NODE_VERSION_AT_LEAST(18, 1, 0) && !defined(NODE_VERSION_SUPPORTS_EMBEDDER_SNAPSHOT)
-#define PASS_NO_NODE_SNAPSHOT_OPTION 1
-#endif
-
-#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
-namespace boxednode {
-void InitializeOncePerProcess();
-void TearDownOncePerProcess();
-}
-#endif
 namespace boxednode {
 namespace {
 struct TimingEntry {
@@ -88,9 +53,7 @@ void MarkTime(const char* category, const char* label) {
 Local<String> GetBoxednodeMainScriptSource(Isolate* isolate);
 Local<Uint8Array> GetBoxednodeCodeCacheBuffer(Isolate* isolate);
 std::vector<char> GetBoxednodeSnapshotBlobVector();
-#ifdef NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT
 std::optional<std::string_view> GetBoxednodeSnapshotBlobSV();
-#endif
 
 void GetTimingData(const FunctionCallbackInfo<Value>& info) {
   Isolate* isolate = info.GetIsolate();
@@ -187,10 +150,8 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
           platform,
           &errors,
           args,
-          exec_args
-#ifdef BOXEDNODE_SNAPSHOT_CONFIG_FLAGS
-          , SnapshotConfig { BOXEDNODE_SNAPSHOT_CONFIG_FLAGS, std::nullopt }
-#endif
+          exec_args,
+          SnapshotConfig { BOXEDNODE_SNAPSHOT_CONFIG_FLAGS, std::nullopt }
           );
 
   Isolate* isolate = setup->isolate();
@@ -241,11 +202,9 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
 
 #ifdef BOXEDNODE_CONSUME_SNAPSHOT
   node::EmbedderSnapshotData::Pointer snapshot_blob;
-#ifdef NODE_VERSION_SUPPORTS_STRING_VIEW_SNAPSHOT
   if (const auto snapshot_blob_sv = boxednode::GetBoxednodeSnapshotBlobSV()) {
     snapshot_blob = EmbedderSnapshotData::FromBlob(snapshot_blob_sv.value());
   }
-#endif
   if (!snapshot_blob) {
     std::vector<char> snapshot_blob_vec = boxednode::GetBoxednodeSnapshotBlobVector();
     boxednode::MarkTime("Node.js Instance", "Decoded snapshot");
@@ -414,22 +373,10 @@ static int BoxednodeMain(std::vector<std::string> args) {
 
   if (args.size() > 0) {
       args.insert(args.begin() + 1, "--");
-#ifdef PASS_NO_NODE_SNAPSHOT_OPTION
-    args.insert(args.begin() + 1, "--no-node-snapshot");
-#endif
   }
 
   // Parse Node.js CLI options, and print any errors that have occurred while
   // trying to parse them.
-#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
-  boxednode::InitializeOncePerProcess();
-  int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
-  for (const std::string& error : errors)
-    fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
-  if (exit_code != 0) {
-    return exit_code;
-  }
-#else
 #if OPENSSL_VERSION_MAJOR >= 3
   if (args.size() > 1)
     args.insert(args.begin() + 1, "--openssl-shared-config");
@@ -448,7 +395,6 @@ static int BoxednodeMain(std::vector<std::string> args) {
   }
   args = result->args();
   exec_args = result->exec_args();
-#endif
 
 #ifdef BOXEDNODE_CONSUME_SNAPSHOT
   if (args.size() > 0) {
@@ -470,13 +416,8 @@ static int BoxednodeMain(std::vector<std::string> args) {
   int ret = RunNodeInstance(platform.get(), args, exec_args);
 
   V8::Dispose();
-#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
-  V8::ShutdownPlatform();
-  boxednode::TearDownOncePerProcess();
-#else
   V8::DisposePlatform();
   node::TearDownOncePerProcess();
-#endif
   return ret;
 }
 
@@ -518,386 +459,6 @@ int main(int argc, char** argv) {
   return BoxednodeMain(std::move(args));
 }
 #endif
-
-// The code below is mostly lifted directly from node.cc
-#ifdef USE_OWN_LEGACY_PROCESS_INITIALIZATION
-
-#if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
-#define NODE_USE_V8_WASM_TRAP_HANDLER 1
-#else
-#define NODE_USE_V8_WASM_TRAP_HANDLER 0
-#endif
-
-#if NODE_USE_V8_WASM_TRAP_HANDLER
-#if defined(_WIN32)
-#include "v8-wasm-trap-handler-win.h"
-#else
-#include <atomic>
-#include "v8-wasm-trap-handler-posix.h"
-#endif
-#endif  // NODE_USE_V8_WASM_TRAP_HANDLER
-
-#if NODE_USE_V8_WASM_TRAP_HANDLER && defined(_WIN32)
-static PVOID old_vectored_exception_handler;
-#endif
-
-#if defined(_MSC_VER)
-#include <direct.h>
-#include <io.h>
-#define STDIN_FILENO 0
-#else
-#include <pthread.h>
-#include <sys/resource.h>  // getrlimit, setrlimit
-#include <termios.h>       // tcgetattr, tcsetattr
-#include <unistd.h>        // STDIN_FILENO, STDERR_FILENO
-#endif
-
-#include <csignal>
-#include <atomic>
-
-namespace boxednode {
-
-#if HAVE_OPENSSL
-static void CheckEntropy() {
-  for (;;) {
-    int status = RAND_status();
-    assert(status >= 0);  // Cannot fail.
-    if (status != 0)
-      break;
-
-    // Give up, RAND_poll() not supported.
-    if (RAND_poll() == 0)
-      break;
-  }
-}
-
-static bool EntropySource(unsigned char* buffer, size_t length) {
-  // Ensure that OpenSSL's PRNG is properly seeded.
-  CheckEntropy();
-  // RAND_bytes() can return 0 to indicate that the entropy data is not truly
-  // random. That's okay, it's still better than V8's stock source of entropy,
-  // which is /dev/urandom on UNIX platforms and the current time on Windows.
-  return RAND_bytes(buffer, length) != -1;
-}
-#endif
-
-void ResetStdio();
-
-#ifdef __POSIX__
-static constexpr unsigned kMaxSignal = 32;
-
-typedef void (*sigaction_cb)(int signo, siginfo_t* info, void* ucontext);
-
-void SignalExit(int signo, siginfo_t* info, void* ucontext) {
-  ResetStdio();
-  raise(signo);
-}
-#endif
-
-#if NODE_USE_V8_WASM_TRAP_HANDLER
-#if defined(_WIN32)
-static LONG TrapWebAssemblyOrContinue(EXCEPTION_POINTERS* exception) {
-  if (v8::TryHandleWebAssemblyTrapWindows(exception)) {
-    return EXCEPTION_CONTINUE_EXECUTION;
-  }
-  return EXCEPTION_CONTINUE_SEARCH;
-}
-#else
-static std::atomic<sigaction_cb> previous_sigsegv_action;
-
-void TrapWebAssemblyOrContinue(int signo, siginfo_t* info, void* ucontext) {
-  if (!v8::TryHandleWebAssemblyTrapPosix(signo, info, ucontext)) {
-    sigaction_cb prev = previous_sigsegv_action.load();
-    if (prev != nullptr) {
-      prev(signo, info, ucontext);
-    } else {
-      // Reset to the default signal handler, i.e. cause a hard crash.
-      struct sigaction sa;
-      memset(&sa, 0, sizeof(sa));
-      sa.sa_handler = SIG_DFL;
-      int ret = sigaction(signo, &sa, nullptr);
-      assert(ret == 0);
-
-      ResetStdio();
-      raise(signo);
-    }
-  }
-}
-#endif  // defined(_WIN32)
-#endif  // NODE_USE_V8_WASM_TRAP_HANDLER
-
-#ifdef __POSIX__
-void RegisterSignalHandler(int signal,
-                           sigaction_cb handler,
-                           bool reset_handler) {
-  assert(handler != nullptr);
-#if NODE_USE_V8_WASM_TRAP_HANDLER
-  if (signal == SIGSEGV) {
-    assert(previous_sigsegv_action.is_lock_free());
-    assert(!reset_handler);
-    previous_sigsegv_action.store(handler);
-    return;
-  }
-#endif  // NODE_USE_V8_WASM_TRAP_HANDLER
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_sigaction = handler;
-  sa.sa_flags = reset_handler ? SA_RESETHAND : 0;
-  sigfillset(&sa.sa_mask);
-  int ret = sigaction(signal, &sa, nullptr);
-  assert(ret == 0);
-}
-#endif  // __POSIX__
-
-#ifdef __POSIX__
-static struct {
-  int flags;
-  bool isatty;
-  struct stat stat;
-  struct termios termios;
-} stdio[1 + STDERR_FILENO];
-#endif  // __POSIX__
-
-
-inline void PlatformInit() {
-#ifdef __POSIX__
-#if HAVE_INSPECTOR
-  sigset_t sigmask;
-  sigemptyset(&sigmask);
-  sigaddset(&sigmask, SIGUSR1);
-  const int err = pthread_sigmask(SIG_SETMASK, &sigmask, nullptr);
-#endif  // HAVE_INSPECTOR
-
-  // Make sure file descriptors 0-2 are valid before we start logging anything.
-  for (auto& s : stdio) {
-    const int fd = &s - stdio;
-    if (fstat(fd, &s.stat) == 0)
-      continue;
-    // Anything but EBADF means something is seriously wrong.  We don't
-    // have to special-case EINTR, fstat() is not interruptible.
-    if (errno != EBADF)
-      assert(0);
-    if (fd != open("/dev/null", O_RDWR))
-      assert(0);
-    if (fstat(fd, &s.stat) != 0)
-      assert(0);
-  }
-
-#if HAVE_INSPECTOR
-  CHECK_EQ(err, 0);
-#endif  // HAVE_INSPECTOR
-
-  // TODO(addaleax): NODE_SHARED_MODE does not really make sense here.
-#ifndef NODE_SHARED_MODE
-  // Restore signal dispositions, the parent process may have changed them.
-  struct sigaction act;
-  memset(&act, 0, sizeof(act));
-
-  // The hard-coded upper limit is because NSIG is not very reliable; on Linux,
-  // it evaluates to 32, 34 or 64, depending on whether RT signals are enabled.
-  // Counting up to SIGRTMIN doesn't work for the same reason.
-  for (unsigned nr = 1; nr < kMaxSignal; nr += 1) {
-    if (nr == SIGKILL || nr == SIGSTOP)
-      continue;
-    act.sa_handler = (nr == SIGPIPE || nr == SIGXFSZ) ? SIG_IGN : SIG_DFL;
-    int ret = sigaction(nr, &act, nullptr);
-    assert(ret == 0);
-  }
-#endif  // !NODE_SHARED_MODE
-
-  // Record the state of the stdio file descriptors so we can restore it
-  // on exit.  Needs to happen before installing signal handlers because
-  // they make use of that information.
-  for (auto& s : stdio) {
-    const int fd = &s - stdio;
-    int err;
-
-    do
-      s.flags = fcntl(fd, F_GETFL);
-    while (s.flags == -1 && errno == EINTR);  // NOLINT
-    assert(s.flags != -1);
-
-    if (uv_guess_handle(fd) != UV_TTY) continue;
-    s.isatty = true;
-
-    do
-      err = tcgetattr(fd, &s.termios);
-    while (err == -1 && errno == EINTR);  // NOLINT
-    assert(err == 0);
-  }
-
-  RegisterSignalHandler(SIGINT, SignalExit, true);
-  RegisterSignalHandler(SIGTERM, SignalExit, true);
-
-#if NODE_USE_V8_WASM_TRAP_HANDLER
-#if defined(_WIN32)
-  {
-    constexpr ULONG first = TRUE;
-    old_vectored_exception_handler =
-        AddVectoredExceptionHandler(first, TrapWebAssemblyOrContinue);
-  }
-#else
-  // Tell V8 to disable emitting WebAssembly
-  // memory bounds checks. This means that we have
-  // to catch the SIGSEGV in TrapWebAssemblyOrContinue
-  // and pass the signal context to V8.
-  {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_sigaction = TrapWebAssemblyOrContinue;
-    sa.sa_flags = SA_SIGINFO;
-    int ret = sigaction(SIGSEGV, &sa, nullptr);
-    assert(ret == 0);
-  }
-#endif  // defined(_WIN32)
-  V8::EnableWebAssemblyTrapHandler(false);
-#endif  // NODE_USE_V8_WASM_TRAP_HANDLER
-
-  // Raise the open file descriptor limit.
-  struct rlimit lim;
-  if (getrlimit(RLIMIT_NOFILE, &lim) == 0 && lim.rlim_cur != lim.rlim_max) {
-    // Do a binary search for the limit.
-    rlim_t min = lim.rlim_cur;
-    rlim_t max = 1 << 20;
-    // But if there's a defined upper bound, don't search, just set it.
-    if (lim.rlim_max != RLIM_INFINITY) {
-      min = lim.rlim_max;
-      max = lim.rlim_max;
-    }
-    do {
-      lim.rlim_cur = min + (max - min) / 2;
-      if (setrlimit(RLIMIT_NOFILE, &lim)) {
-        max = lim.rlim_cur;
-      } else {
-        min = lim.rlim_cur;
-      }
-    } while (min + 1 < max);
-  }
-#endif  // __POSIX__
-#ifdef _WIN32
-  for (int fd = 0; fd <= 2; ++fd) {
-    auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
-    if (handle == INVALID_HANDLE_VALUE ||
-        GetFileType(handle) == FILE_TYPE_UNKNOWN) {
-      // Ignore _close result. If it fails or not depends on used Windows
-      // version. We will just check _open result.
-      _close(fd);
-      if (fd != _open("nul", _O_RDWR))
-        assert(0);
-    }
-  }
-#endif  // _WIN32
-}
-
-
-// Safe to call more than once and from signal handlers.
-void ResetStdio() {
-  uv_tty_reset_mode();
-#ifdef __POSIX__
-  for (auto& s : stdio) {
-    const int fd = &s - stdio;
-
-    struct stat tmp;
-    if (-1 == fstat(fd, &tmp)) {
-      assert(errno == EBADF);  // Program closed file descriptor.
-      continue;
-    }
-
-    bool is_same_file =
-        (s.stat.st_dev == tmp.st_dev && s.stat.st_ino == tmp.st_ino);
-    if (!is_same_file) continue;  // Program reopened file descriptor.
-
-    int flags;
-    do
-      flags = fcntl(fd, F_GETFL);
-    while (flags == -1 && errno == EINTR);  // NOLINT
-    assert(flags != -1);
-
-    // Restore the O_NONBLOCK flag if it changed.
-    if (O_NONBLOCK & (flags ^ s.flags)) {
-      flags &= ~O_NONBLOCK;
-      flags |= s.flags & O_NONBLOCK;
-
-      int err;
-      do
-        err = fcntl(fd, F_SETFL, flags);
-      while (err == -1 && errno == EINTR);  // NOLINT
-      assert(err != -1);
-    }
-
-    if (s.isatty) {
-      sigset_t sa;
-      int err, ret;
-
-      // We might be a background job that doesn't own the TTY so block SIGTTOU
-      // before making the tcsetattr() call, otherwise that signal suspends us.
-      sigemptyset(&sa);
-      sigaddset(&sa, SIGTTOU);
-
-      ret = pthread_sigmask(SIG_BLOCK, &sa, nullptr);
-      assert(ret == 0);
-      do
-        err = tcsetattr(fd, TCSANOW, &s.termios);
-      while (err == -1 && errno == EINTR);  // NOLINT
-      ret = pthread_sigmask(SIG_UNBLOCK, &sa, nullptr);
-      assert(ret == 0);
-
-      // Normally we expect err == 0. But if macOS App Sandbox is enabled,
-      // tcsetattr will fail with err == -1 and errno == EPERM.
-      if (err != 0) {
-        assert(err == -1 && errno == EPERM);
-      }
-    }
-  }
-#endif  // __POSIX__
-}
-
-static void InitializeOpenSSL() {
-#if HAVE_OPENSSL && !defined(OPENSSL_IS_BORINGSSL)
-  // In the case of FIPS builds we should make sure
-  // the random source is properly initialized first.
-#if OPENSSL_VERSION_MAJOR >= 3
-  // Use OPENSSL_CONF environment variable is set.
-  const char* conf_file = getenv("OPENSSL_CONF");
-
-  OPENSSL_INIT_SETTINGS* settings = OPENSSL_INIT_new();
-  OPENSSL_INIT_set_config_filename(settings, conf_file);
-  OPENSSL_INIT_set_config_appname(settings, "openssl_conf");
-  OPENSSL_INIT_set_config_file_flags(settings,
-                                      CONF_MFLAGS_IGNORE_MISSING_FILE);
-
-  OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, settings);
-  OPENSSL_INIT_free(settings);
-
-  if (ERR_peek_error() != 0) {
-    fprintf(stderr, "OpenSSL configuration error:\n");
-    ERR_print_errors_fp(stderr);
-    exit(1);
-  }
-#else  // OPENSSL_VERSION_MAJOR < 3
-  if (FIPS_mode()) {
-    OPENSSL_init();
-  }
-#endif
-  V8::SetEntropySource(boxednode::EntropySource);
-#endif
-}
-
-void InitializeOncePerProcess() {
-  atexit(ResetStdio);
-  PlatformInit();
-  InitializeOpenSSL();
-}
-
-void TearDownOncePerProcess() {
-#if NODE_USE_V8_WASM_TRAP_HANDLER && defined(_WIN32)
-  RemoveVectoredExceptionHandler(old_vectored_exception_handler);
-#endif
-}
-
-}  // namespace boxednode
-
-#endif  // USE_OWN_LEGACY_PROCESS_INITIALIZATION
 
 namespace boxednode {
 REPLACE_WITH_MAIN_SCRIPT_SOURCE_GETTER
