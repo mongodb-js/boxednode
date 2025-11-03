@@ -170,7 +170,7 @@ buildvariants:
       - test_n24
   - name: windows_x64_test
     display_name: 'Windows x64'
-    run_on: windows-2022-latest-xlarge
+    run_on: windows-2022-xlarge
     tasks:
       - test_n20
       - test_n22
