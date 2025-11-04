@@ -17,6 +17,7 @@ functions:
           if [ "$OS" == "Windows_NT" ]; then
             BASE_PYTHON="/cygdrive/c/python/Python311"
             export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
+            hash -r
           fi
 
           export NODE_VERSION=22.17.0
@@ -33,6 +34,7 @@ functions:
           if [ "$OS" == "Windows_NT" ]; then
             BASE_PYTHON="/cygdrive/c/python/Python311"
             export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
+            hash -r
           fi
           
           . .evergreen/use-node.sh
@@ -52,6 +54,7 @@ functions:
           if [ "$OS" == "Windows_NT" ]; then
             BASE_PYTHON="/cygdrive/c/python/Python311"
             export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
+            hash -r
           fi
           npm run build
           npm run lint
@@ -102,6 +105,7 @@ functions:
             BASE_PYTHON="/cygdrive/c/python/Python311"
             export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
             export BOXEDNODE_CONFIGURE_ARGS='openssl-no-asm'
+            hash -r
           elif uname -a | grep -q 'Darwin.*x86_64'; then
             export BOXEDNODE_CONFIGURE_ARGS='--openssl-no-asm'
           fi
