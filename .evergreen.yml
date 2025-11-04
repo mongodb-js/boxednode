@@ -39,6 +39,10 @@ functions:
           set -x
 
           . .evergreen/use-node.sh
+          if [ "$OS" == "Windows_NT" ]; then
+            BASE_PYTHON="/cygdrive/c/python/Python311"
+            export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
+          fi
           npm run build
           npm run lint
   test:
@@ -85,7 +89,8 @@ functions:
           # able to compile OpenSSL with assembly support,
           # so we revert back to the slower version.
           if [ "$OS" == "Windows_NT" ]; then
-            export PATH="/cygdrive/c/python/Python310/Scripts:/cygdrive/c/python/Python310:/cygdrive/c/Python310/Scripts:/cygdrive/c/Python310:$PATH"
+            BASE_PYTHON="/cygdrive/c/python/Python311"
+            export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
             export BOXEDNODE_CONFIGURE_ARGS='openssl-no-asm'
           elif uname -a | grep -q 'Darwin.*x86_64'; then
             export BOXEDNODE_CONFIGURE_ARGS='--openssl-no-asm'
