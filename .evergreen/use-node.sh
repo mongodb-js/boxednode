@@ -5,10 +5,10 @@ else
     export PATH="/opt/devtools/bin:$PATH"
 
     if [ "$(uname -s)" == "Darwin" ] ; then # in OSX use nvm
-	export NVM_DIR="$PWD/.deps/nvm"
-	[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+        export NVM_DIR="$PWD/.deps/nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
     else # In Linux, use .deps/node/bin because it was set up with symlink to an existing node in the toolchain
-	export PATH="$PWD/.deps/node/bin:$PATH"
+        export PATH="$PWD/.deps/node/bin:$PATH"
     fi
 fi
 
