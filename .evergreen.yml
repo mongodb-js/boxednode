@@ -16,6 +16,8 @@ functions:
 
           if [ "$OS" == "Windows_NT" ]; then
             BASE_PYTHON="/cygdrive/c/python/Python311"
+            export PYTHON="$BASE_PYTHON/python.exe"
+            export PYTHON3="$PYTHON"
             export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
             hash -r
           fi
@@ -33,6 +35,8 @@ functions:
 
           if [ "$OS" == "Windows_NT" ]; then
             BASE_PYTHON="/cygdrive/c/python/Python311"
+            export PYTHON="$BASE_PYTHON/python.exe"
+            export PYTHON3="$PYTHON"
             export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
             hash -r
           fi
@@ -53,6 +57,8 @@ functions:
           . .evergreen/use-node.sh
           if [ "$OS" == "Windows_NT" ]; then
             BASE_PYTHON="/cygdrive/c/python/Python311"
+            export PYTHON="$BASE_PYTHON/python.exe"
+            export PYTHON3="$PYTHON"
             export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
             hash -r
           fi
@@ -103,6 +109,8 @@ functions:
           # so we revert back to the slower version.
           if [ "$OS" == "Windows_NT" ]; then
             BASE_PYTHON="/cygdrive/c/python/Python311"
+            export PYTHON="$BASE_PYTHON/python.exe"
+            export PYTHON3="$PYTHON"
             export PATH="$BASE_PYTHON/Scripts:$BASE_PYTHON:$PATH"
             export BOXEDNODE_CONFIGURE_ARGS='openssl-no-asm'
             hash -r
