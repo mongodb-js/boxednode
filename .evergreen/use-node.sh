@@ -1,5 +1,5 @@
 if [[ "$OS" == "Windows_NT" ]]; then
-    export APPDATA="$TEMP/npm-cache"
+    export APPDATA="npm-cache"
     export PATH="$PWD/.deps/node/bin:$PATH"
 else
     # so we use the devtools binaries first (for gcc/g++)
