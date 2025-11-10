@@ -108,8 +108,18 @@ functions:
           fi
 
           . .evergreen/use-node.sh
-          npm run build
-          TEST_NODE_VERSION="$TEST_NODE_VERSION" npm run test-ci
+          export TEST_NODE_VERSION="$TEST_NODE_VERSION"
+          if [ "$OS" == "Windows_NT" ]; then
+            # The CI machines we have for Windows don't have a working
+            # installation of VS2022, (vswhere.exe can't find the correct path)
+            # So we run the scripts to set up the environment manually, and they
+            # only work properly in CMD
+            WIN_PATH=$(cygpath -aw .evergreen/test-in-vcdev-env.bat)
+            cmd.exe /c "$WIN_PATH"
+          else
+            npm run build
+            npm run test-ci
+          fi
 
 tasks:
   - name: test_n20
