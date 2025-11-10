@@ -3,4 +3,4 @@ REM APPDATA is empty in CMD, and npm requires it to be a valid path
 SET APPDATA="npm-cache"
 
 CALL npm run build
-CALL npm run test-ic
+CALL npm run test-ci
