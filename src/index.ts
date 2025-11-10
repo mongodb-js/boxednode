@@ -237,14 +237,11 @@ async function compileNode (
 
     // These defaults got things to work locally. We only include them if no
     // conflicting arguments have been passed manually.
-    const passedArgs: string[] = [...buildArgs, ...makeArgs];
-    const vcbuildArgs: string[] = [];
+    const vcbuildArgs: string[] = [...buildArgs, ...makeArgs, 'projgen'];
+    if (!vcbuildArgs.includes('debug') && !vcbuildArgs.includes('release')) { vcbuildArgs.push('release'); }
+    if (!vcbuildArgs.includes('x86') && !vcbuildArgs.includes('x64')) { vcbuildArgs.push('x64'); }
+    if (!vcbuildArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2022'); }
 
-    if (!passedArgs.includes('debug') && !passedArgs.includes('release')) { vcbuildArgs.push('release'); }
-    if (!passedArgs.includes('x86') && !passedArgs.includes('x64')) { vcbuildArgs.push('x64'); }
-    if (!passedArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2022'); }
-
-    vcbuildArgs.push(...passedArgs);
     for (const module of linkedJSModules) {
       vcbuildArgs.push('link-module', module);
     }
