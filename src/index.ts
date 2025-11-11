@@ -239,12 +239,12 @@ async function compileNode (
     // conflicting arguments have been passed manually.
     const vcbuildArgs: string[] = [...buildArgs, ...makeArgs, 'projgen'];
     if (!vcbuildArgs.includes('debug') && !vcbuildArgs.includes('release')) { vcbuildArgs.push('release'); }
-    if (!vcbuildArgs.includes('x86')
-        && !vcbuildArgs.includes('x64')
-        && !vcbuildArgs.includes('ia32')
-        && !vcbuildArgs.includes('arm64')
-       ) {
-        vcbuildArgs.push('x64');
+    if (!vcbuildArgs.includes('x86') &&
+        !vcbuildArgs.includes('x64') &&
+        !vcbuildArgs.includes('ia32') &&
+        !vcbuildArgs.includes('arm64')
+    ) {
+      vcbuildArgs.push('x64');
     }
     if (!vcbuildArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2022'); }
 
