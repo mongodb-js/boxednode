@@ -9,6 +9,7 @@ defaults:
 jobs:
   test-posix:
     name: Unix tests
+    timeout-minutes: 480 # 8h
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +30,7 @@ jobs:
 
   test-windows:
     name: Windows tests
+    timeout-minutes: 480 # 8h
     strategy:
       fail-fast: false
       matrix:
