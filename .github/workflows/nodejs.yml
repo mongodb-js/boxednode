@@ -16,9 +16,9 @@ jobs:
         node-version: [20.x, 22.x, 24.x]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v5
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v6
         with:
           check-latest: true
           node-version: ${{ matrix.node-version }}
@@ -26,3 +26,34 @@ jobs:
         run: npm install
       - name: Test
         run: npm test
+
+  test-windows:
+    name: Windows tests
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+        node-version: [20.x, 22.x, 24.x]
+        vs-version: ['17']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          check-latest: true
+          node-version: ${{ matrix.node-version }}
+      - uses: microsoft/setup-msbuild@v2
+        name: Setup MSBuild
+        with:
+          vs-version: ${{ matrix.vs-version }}
+          msbuild-architecture: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+        name: Setup MSVC DevTools
+        with:
+          arch: x64
+      - name: Install Dependencies
+        run: npm install
+      - name: Test
+        run: npm test
+        
