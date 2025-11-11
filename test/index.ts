@@ -3,7 +3,6 @@ import path from 'path';
 import os from 'os';
 import assert from 'assert';
 import childProcess from 'child_process';
-import semver from 'semver';
 import { promisify } from 'util';
 import pkgUp from 'pkg-up';
 import { promises as fs } from 'fs';
