@@ -19,7 +19,7 @@ functions:
             export PATH="/cygdrive/c/python/Python311/Scripts:/cygdrive/c/python/Python311:$PATH"
           fi
 
-          export NODE_VERSION=24.10.0
+          export NODE_VERSION=22.17.0
           . .evergreen/install-node.sh
   install:
     - command: shell.exec
