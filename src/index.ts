@@ -251,9 +251,13 @@ async function compileNode (
     for (const module of linkedJSModules) {
       vcbuildArgs.push('link-module', module);
     }
-    await spawnBuildCommand(['cmd', '/c', '.\\vcbuild.bat', ...vcbuildArgs], options);
 
-    return path.join(sourcePath, 'Release', 'node.exe');
+    await spawnBuildCommand(['cmd', '/c', '.\\vcbuild.bat', ...vcbuildArgs], options);
+    if (vcbuildArgs.includes('debug')) {
+      return path.join(sourcePath, 'Debug', 'node.exe');
+    } else {
+      return path.join(sourcePath, 'Release', 'node.exe');
+    }
   }
 }
 
