@@ -14,6 +14,13 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         node-version: [20.x, 22.x, 24.x]
+        test-to-run:
+          - "works in a simple case"
+          - "works with a Nan addon"
+          - "works with a N-API addon"
+          - "passes through env vars and runs the pre-compile hook"
+          - "works with code caching support"
+          - "works with snapshot support"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -21,11 +28,16 @@ jobs:
         uses: actions/setup-node@v6
         with:
           check-latest: true
+          cache: npm
           node-version: ${{ matrix.node-version }}
       - name: Install Dependencies
         run: npm install
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
       - name: Test
-        run: npm test
+        run: npm run test-ci -- -g "${{ matrix.test-to-run }}"
 
   test-windows:
     name: Windows tests
@@ -35,6 +47,13 @@ jobs:
         os: [windows-latest]
         node-version: [20.x, 22.x, 24.x]
         vs-version: ['17'] # 17 => VS2022
+        test-to-run:
+          - "works in a simple case"
+          - "works with a Nan addon"
+          - "works with a N-API addon"
+          - "passes through env vars and runs the pre-compile hook"
+          - "works with code caching support"
+          - "works with snapshot support"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -42,6 +61,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           check-latest: true
+          cache: npm
           node-version: ${{ matrix.node-version }}
       - uses: microsoft/setup-msbuild@v2
         name: Setup MSBuild
@@ -50,8 +70,12 @@ jobs:
           msbuild-architecture: x64
       - name: Install Dependencies
         run: npm install
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
       - name: Test
+        run: npm run test-ci -- -g "${{ matrix.test-to-run }}"
         env:
           BOXEDNODE_MAKE_ARGS: "debug"
-        run: npm test
         
