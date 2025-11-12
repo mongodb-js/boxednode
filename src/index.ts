@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { AddonConfig, loadGYPConfig, storeGYPConfig, modifyAddonGyp } from './native-addons';
 import { ExecutableMetadata, generateRCFile } from './executable-metadata';
-import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition, createCompressedBlobDefinition, createUncompressedBlobDefinition } from './helpers';
+import { spawnBuildCommand, ProcessEnv, pipeline, createCppJsStringDefinition, createCompressedBlobDefinition, createUncompressedBlobDefinition, deletePrecompiledHeadersInFolder } from './helpers';
 import { Readable } from 'stream';
 import nv from '@pkgjs/nv';
 import { fileURLToPath, URL } from 'url';
@@ -466,6 +466,17 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       throw new Error('Empty code cache/snapshot result');
     }
     logger.stepCompleted();
+    if (process.platform === 'win32' && nodeVersion[0] >= 24) {
+      // Compiling with a snapshot requires compiling twice: a base image
+      // and the image with the snapshot embedded. In that situation, clang-cl
+      // complains that there are precompiled headers that changed between
+      // compilations and does not refresh them, but kills the compilation
+      // process with an error. Due to this, before attempting the second
+      // compilation, we will delete all pch files.
+      logger.stepStarting('(win32) Deleting precompiled headers');
+      await deletePrecompiledHeadersInFolder(nodeSourcePath, { dryRun: false });
+      logger.stepCompleted();
+    }
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
       snapshotBlob: result,
       snapshotMode: 'consume'

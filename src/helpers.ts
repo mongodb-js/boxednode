@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import path from 'path';
 import { Logger } from './logger';
 import crypto from 'crypto';
 import childProcess from 'child_process';
@@ -75,6 +76,26 @@ export function npm (): string[] {
   } else {
     return ['npm'];
   }
+}
+
+export async function deletePrecompiledHeadersInFolder (folder: string, { dryRun }: { dryRun: boolean }): Promise<string[]> {
+  const files = await fs.readdir(folder);
+  const result: string[] = [];
+
+  for (const file of files) {
+    const absolutePath = path.join(folder, file);
+    const stat = await fs.lstat(absolutePath);
+    if (stat.isDirectory()) {
+      const deletedFiles = await deletePrecompiledHeadersInFolder(absolutePath, { dryRun });
+      result.push(...deletedFiles);
+    } else if (absolutePath.endsWith('.pch')) {
+      if (!dryRun) {
+        await fs.unlink(absolutePath);
+      }
+      result.push(absolutePath);
+    }
+  }
+  return result;
 }
 
 export function createCppJsStringDefinition (fnName: string, source: string): string {
