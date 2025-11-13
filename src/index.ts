@@ -474,7 +474,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       // process with an error. Due to this, before attempting the second
       // compilation, we will delete all pch files.
       logger.stepStarting('(win32) Deleting precompiled headers');
-      await deletePrecompiledHeadersInFolder(nodeSourcePath, { dryRun: false });
+      await deletePrecompiledHeadersInFolder(nodeSourcePath);
       logger.stepCompleted();
     }
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {

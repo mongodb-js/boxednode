@@ -78,7 +78,7 @@ export function npm (): string[] {
   }
 }
 
-export async function deletePrecompiledHeadersInFolder (folder: string, { dryRun }: { dryRun: boolean }): Promise<string[]> {
+export async function deletePrecompiledHeadersInFolder (folder: string): Promise<string[]> {
   const files = await fs.readdir(folder);
   const result: string[] = [];
 
@@ -86,12 +86,10 @@ export async function deletePrecompiledHeadersInFolder (folder: string, { dryRun
     const absolutePath = path.join(folder, file);
     const stat = await fs.lstat(absolutePath);
     if (stat.isDirectory()) {
-      const deletedFiles = await deletePrecompiledHeadersInFolder(absolutePath, { dryRun });
+      const deletedFiles = await deletePrecompiledHeadersInFolder(absolutePath);
       result.push(...deletedFiles);
     } else if (absolutePath.endsWith('.pch')) {
-      if (!dryRun) {
-        await fs.unlink(absolutePath);
-      }
+      await fs.unlink(absolutePath);
       result.push(absolutePath);
     }
   }

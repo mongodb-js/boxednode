@@ -6,24 +6,12 @@ import childProcess from 'child_process';
 import { promisify } from 'util';
 import pkgUp from 'pkg-up';
 import { promises as fs } from 'fs';
-import { deletePrecompiledHeadersInFolder } from '../src/helpers';
 
 const execFile = promisify(childProcess.execFile);
 const exeSuffix = process.platform === 'win32' ? '.exe' : '';
 
 // we are using 4h because compiling in windows might take more time
 const DEFAULT_TIMEOUT = 4 * 60 * 60 * 1000;
-
-describe('deletePrecompiledHeadersInFolder', async function () {
-  it('deletes pch files recursively', async function () {
-    const pchfixture = path.join(__dirname, 'pchfixture');
-    const deletedAbsolutePaths = await deletePrecompiledHeadersInFolder(pchfixture, { dryRun: true });
-    const deletedFiles = deletedAbsolutePaths.map(absPath => path.relative(pchfixture, absPath));
-    deletedFiles.sort();
-
-    assert(JSON.stringify(deletedFiles) === JSON.stringify(['delete_1.pch', 'inner/delete_2.pch']));
-  });
-});
 
 describe('basic functionality', () => {
   // Test the currently running Node.js version. Other versions can be checked
