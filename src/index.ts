@@ -475,6 +475,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       // compilation, we will delete all pch files.
       logger.stepStarting('(win32) Deleting precompiled headers');
       await promisify(rimraf)(`${nodeSourcePath}/**/*.pch`, { glob: true });
+      await promisify(rimraf)(`${options.tmpdir}/**/*.pch`, { glob: true });
       logger.stepCompleted();
     }
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
