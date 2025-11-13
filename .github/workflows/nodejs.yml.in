@@ -1,7 +1,3 @@
-# This is a generated file. Please change .github/workflows/nodejs.yml.in
-# and run the following command to update the GHA Workflow
-# $> npm run update-gha-workflow
-# --------------------
 on: [pull_request]
 
 name: CI
@@ -18,7 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         node-version: [20.x, 22.x, 24.x]
-        test-to-run: ["works in a simple case","works with a Nan addon","works with a N-API addon","passes through env vars and runs the pre-compile hook","works with code caching support","works with snapshot support (compressBlobs = "]
+        test-to-run: <<TEST_NAMES>>
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -44,7 +40,7 @@ jobs:
         os: [windows-latest]
         node-version: [20.x, 22.x, 24.x]
         vs-version: ['17'] # 17 => VS2022
-        test-to-run: ["works in a simple case","works with a Nan addon","works with a N-API addon","passes through env vars and runs the pre-compile hook","works with code caching support","works with snapshot support (compressBlobs = "]
+        test-to-run: <<TEST_NAMES>>
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -68,4 +64,4 @@ jobs:
         run: npm run test-ci -- -g "${{ matrix.test-to-run }}"
         env:
           BOXEDNODE_MAKE_ARGS: "debug"
-        
+

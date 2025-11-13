@@ -19,7 +19,8 @@
     "test-ci": "nyc mocha --colors -r ts-node/register test/*.ts",
     "build": "npm run compile-ts && gen-esm-wrapper . ./.esm-wrapper.mjs",
     "prepack": "npm run build",
-    "compile-ts": "tsc -p tsconfig.json"
+    "compile-ts": "tsc -p tsconfig.json",
+    "update-gha-workflow": "./scripts/update-gha-workflow.sh"
   },
   "keywords": [
     "node.js",
