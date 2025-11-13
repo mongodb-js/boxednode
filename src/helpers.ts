@@ -78,24 +78,6 @@ export function npm (): string[] {
   }
 }
 
-export async function deletePrecompiledHeadersInFolder (folder: string): Promise<string[]> {
-  const files = await fs.readdir(folder);
-  const result: string[] = [];
-
-  for (const file of files) {
-    const absolutePath = path.join(folder, file);
-    const stat = await fs.lstat(absolutePath);
-    if (stat.isDirectory()) {
-      const deletedFiles = await deletePrecompiledHeadersInFolder(absolutePath);
-      result.push(...deletedFiles);
-    } else if (absolutePath.endsWith('.pch')) {
-      await fs.unlink(absolutePath);
-      result.push(absolutePath);
-    }
-  }
-  return result;
-}
-
 export function createCppJsStringDefinition (fnName: string, source: string): string {
   if (!source.length) {
     return `Local<String> ${fnName}(Isolate* isolate) { return String::Empty(isolate); }`;
