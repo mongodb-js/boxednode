@@ -473,8 +473,8 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       // compilations and does not refresh them, but kills the compilation
       // process with an error. Due to this, before attempting the second
       // compilation, we will delete all pch files.
-	logger.stepStarting('(win32) Deleting precompiled headers');
-	await promisify(rimraf)(`${nodeSourcePath}/**/*.pch`, { glob: true });
+      logger.stepStarting('(win32) Deleting precompiled headers');
+      await promisify(rimraf)(`${nodeSourcePath}/**/*.pch`, { glob: true });
       logger.stepCompleted();
     }
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
@@ -492,7 +492,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
   logger.stepCompleted();
 
   if (options.clean) {
-      logger.stepStarting('Cleaning temporary directory');
+    logger.stepStarting('Cleaning temporary directory');
     await promisify(rimraf)(options.tmpdir, { glob: false });
     logger.stepCompleted();
   }
