@@ -5,7 +5,7 @@ import tar from 'tar';
 import path from 'path';
 import zlib from 'zlib';
 import os from 'os';
-import rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import crypto from 'crypto';
 import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
@@ -474,10 +474,10 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       // process with an error. Due to this, before attempting the second
       // compilation, we will delete all pch files.
       logger.stepStarting(`(win32) Deleting precompiled headers at ${nodeSourcePath}`);
-      await promisify(rimraf)(`${nodeSourcePath}/**/*.pch`, { glob: true });
+      await rimraf(`${nodeSourcePath}/**/*.pch`, { glob: true });
       logger.stepCompleted();
       logger.stepStarting(`(win32) Deleting precompiled headers at ${options.tmpdir}`);
-      await promisify(rimraf)(`${options.tmpdir}/**/*.pch`, { glob: true });
+      await rimraf(`${options.tmpdir}/**/*.pch`, { glob: true });
       logger.stepCompleted();
     }
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
@@ -496,7 +496,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
 
   if (options.clean) {
     logger.stepStarting('Cleaning temporary directory');
-    await promisify(rimraf)(options.tmpdir, { glob: false });
+    await rimraf(options.tmpdir, { glob: false });
     logger.stepCompleted();
   }
 }
