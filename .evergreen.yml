@@ -14,8 +14,13 @@ functions:
           set -e
           set -x
 
-          export NODE_VERSION=20.13.0
-          bash .evergreen/install-node.sh
+          if [ "$OS" == "Windows_NT" ]; then
+            export NODE_GYP_FORCE_PYTHON="C:\python\Python311\python.exe"
+            export PATH="/cygdrive/c/python/Python311/Scripts:/cygdrive/c/python/Python311:$PATH"
+          fi
+
+          export NODE_VERSION=22.17.0
+          . .evergreen/install-node.sh
   install:
     - command: shell.exec
       params:
@@ -25,6 +30,11 @@ functions:
           set -e
           set -x
 
+          if [ "$OS" == "Windows_NT" ]; then
+            export NODE_GYP_FORCE_PYTHON="C:\python\Python311\python.exe"
+            export PATH="/cygdrive/c/python/Python311/Scripts:/cygdrive/c/python/Python311:$PATH"
+          fi
+          
           . .evergreen/use-node.sh
           npm install
   check:
@@ -32,10 +42,17 @@ functions:
       params:
         working_dir: src
         shell: bash
+        env:
+          NODE_VERSION: ${node_version}
         script: |
           set -e
           set -x
 
+          if [ "$OS" == "Windows_NT" ]; then
+            export NODE_GYP_FORCE_PYTHON="C:\python\Python311\python.exe"
+            export PATH="/cygdrive/c/python/Python311/Scripts:/cygdrive/c/python/Python311:$PATH"
+          fi
+          
           . .evergreen/use-node.sh
           npm run build
           npm run lint
@@ -51,9 +68,28 @@ functions:
           AZURE_TEST_CONFIG: ${azure_test_config}
           AZURE_TEST_CREDENTIALS: ${azure_test_credentials}
           DISTRO_ID: ${distro_id}
+          BOXEDNODE_DCHECKS_ENABLED: ${dchecks_enabled}
         script: |
           set -e
           set -x
+
+          if [ `uname` == "Darwin" ]; then
+            # the CI macOS machines have an outdated Clang that
+            # cannot build recent Node.js versions, so we use
+            # the LLVM version installed via Homebrew
+            # (both on arm64 and x64)
+
+            LLVM_PREFIX="$(brew --prefix llvm)"
+            export PATH="$LLVM_PREFIX/bin:$PATH"
+            export CC="$LLVM_PREFIX/bin/clang"
+            export CXX="$LLVM_PREFIX/bin/clang++"
+            export LDFLAGS="-L$LLVM_PREFIX/lib -L$LLVM_PREFIX/lib/c++ -L$LLVM_PREFIX/lib/unwind"
+            export CPPFLAGS="-I$LLVM_PREFIX/include"
+            export CMAKE_PREFIX_PATH="$LLVM_PREFIX"
+
+            $CC --version
+            $CXX --version
+          fi
 
           rm -rf /tmp/m && mkdir -pv /tmp/m # Node.js compilation can fail on long path prefixes
           trap "rm -rf /tmp/m" EXIT
@@ -64,41 +100,28 @@ functions:
           # able to compile OpenSSL with assembly support,
           # so we revert back to the slower version.
           if [ "$OS" == "Windows_NT" ]; then
-            export PATH="/cygdrive/c/python/Python310/Scripts:/cygdrive/c/python/Python310:/cygdrive/c/Python310/Scripts:/cygdrive/c/Python310:$PATH"
+            export NODE_GYP_FORCE_PYTHON="C:\python\Python311\python.exe"
+            export PATH="/cygdrive/c/python/Python311/Scripts:/cygdrive/c/python/Python311:$PATH"
             export BOXEDNODE_CONFIGURE_ARGS='openssl-no-asm'
           elif uname -a | grep -q 'Darwin.*x86_64'; then
             export BOXEDNODE_CONFIGURE_ARGS='--openssl-no-asm'
           fi
 
           . .evergreen/use-node.sh
-          npm run build
-          TEST_NODE_VERSION="$TEST_NODE_VERSION" npm run test-ci
+          export TEST_NODE_VERSION="$TEST_NODE_VERSION"
+          if [ "$OS" == "Windows_NT" ]; then
+            # The CI machines we have for Windows don't have a working
+            # installation of VS2022, (vswhere.exe can't find the correct path)
+            # So we run the scripts to set up the environment manually, and they
+            # only work properly in CMD
+            WIN_PATH=$(cygpath -aw .evergreen/test-in-vcdev-env.bat)
+            cmd.exe /c "$WIN_PATH"
+          else
+            npm run build
+            npm run test-ci
+          fi
 
 tasks:
-  - name: test_n14
-    commands:
-      - func: checkout
-      - func: install_node
-      - func: install
-      - func: test
-        vars:
-          node_version: "14.21.3"
-  - name: test_n16
-    commands:
-      - func: checkout
-      - func: install_node
-      - func: install
-      - func: test
-        vars:
-          node_version: "16.20.1"
-  - name: test_n18
-    commands:
-      - func: checkout
-      - func: install_node
-      - func: install
-      - func: test
-        vars:
-          node_version: "18.17.0"
   - name: test_n20
     commands:
       - func: checkout
@@ -106,7 +129,52 @@ tasks:
       - func: install
       - func: test
         vars:
-          node_version: "20.13.0"
+          node_version: "20.19.5"
+  - name: test_n22
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "22.21.0"
+  - name: test_n24
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "24.10.0"
+
+  - name: test_n20_dchecks
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "20.19.5"
+          dchecks_enabled: 1
+  - name: test_n22_dchecks
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "22.21.0"
+          dchecks_enabled: 1
+  - name: test_n24_dchecks
+    commands:
+      - func: checkout
+      - func: install_node
+      - func: install
+      - func: test
+        vars:
+          node_version: "24.10.0"
+          dchecks_enabled: 1
+
   - name: check
     commands:
       - func: checkout
@@ -119,32 +187,35 @@ buildvariants:
     display_name: 'Ubuntu 20.04 x64'
     run_on: ubuntu2004-large
     tasks:
-      - test_n14
-      - test_n16
-      - test_n18
       - test_n20
+      - test_n22
+      - test_n24
       - check
+  - name: ubuntu_arm64_dchecks
+    display_name: 'Ubuntu 24.04 arm64 (Node.js/V8 DCHECKs)'
+    run_on: ubuntu2404-arm64-latest-xlarge
+    tasks:
+      - test_n20_dchecks
+      - test_n22_dchecks
+      - test_n24_dchecks
   - name: macos_x64_test
-    display_name: 'macOS 11.00 x64'
-    run_on: macos-1100
+    display_name: 'macOS 14.00 x64'
+    run_on: macos-14
     tasks:
-      - test_n14
-      - test_n16
-      - test_n18
       - test_n20
+      - test_n22
+      - test_n24
   - name: macos_arm64_test
-    display_name: 'macOS 11.00 arm64'
-    run_on: macos-1100-arm64
+    display_name: 'macOS 14.00 arm64'
+    run_on: macos-14-arm64
     tasks:
-      - test_n14
-      - test_n16
-      - test_n18
       - test_n20
+      - test_n22
+      - test_n24
   - name: windows_x64_test
     display_name: 'Windows x64'
-    run_on: windows-vsCurrent-xlarge
+    run_on: windows-2022-xlarge
     tasks:
-      - test_n14
-      - test_n16
-      - test_n18
       - test_n20
+      - test_n22
+      - test_n24
