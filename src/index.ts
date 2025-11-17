@@ -352,25 +352,11 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       enableBindingsPatch
     }));
 
-  /**
-   * Since Node 20.x, external source code linked from `lib` directory started
-   * failing the Node.js build process because of the file being linked multiple
-   * times which is why we do not link the external files anymore from `lib`
-   * directory and instead from a different directory, `lib-boxednode`. This
-   * however does not work for any node version < 20 which is why we are
-   * conditionally generating the entry point and configure params here based on
-   * Node version.
-   */
-  const { customCodeSource, customCodeConfigureParam, customCodeEntryPoint } = nodeVersion[0] >= 20
-    ? {
-      customCodeSource: path.join(nodeSourcePath, 'lib-boxednode', `${namespace}.js`),
-      customCodeConfigureParam: `./lib-boxednode/${namespace}.js`,
-      customCodeEntryPoint: `lib-boxednode/${namespace}`
-    } : {
-      customCodeSource: path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
-      customCodeConfigureParam: `./lib/${namespace}/${namespace}.js`,
-      customCodeEntryPoint: `${namespace}/${namespace}`
-    };
+  const { customCodeSource, customCodeConfigureParam, customCodeEntryPoint } = {
+    customCodeSource: path.join(nodeSourcePath, 'lib-boxednode', `${namespace}.js`),
+    customCodeConfigureParam: `./lib-boxednode/${namespace}.js`,
+    customCodeEntryPoint: `lib-boxednode/${namespace}`
+  };
 
   await fs.mkdir(path.dirname(customCodeSource), { recursive: true });
   await fs.writeFile(customCodeSource, entryPointTrampolineSource);
@@ -476,6 +462,8 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       const resolvedNodeSourcePath = (await fs.realpath(nodeSourcePath)).replace(/\\/g, '/');
       logger.stepStarting(`(win32) Deleting precompiled headers at ${resolvedNodeSourcePath}`);
       await rimraf(`${resolvedNodeSourcePath}/**/*.pch`, { glob: { follow: true, nodir: true } });
+      await rimraf(`${resolvedNodeSourcePath}/**/out/`, { glob: { follow: true } });
+      await rimraf(`${resolvedNodeSourcePath}/**/obj/`, { glob: { follow: true } });
       logger.stepCompleted();
     }
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
