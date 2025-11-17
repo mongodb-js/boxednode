@@ -378,6 +378,20 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     ? createCompressedBlobDefinition
     : createUncompressedBlobDefinition;
 
+  async function cleanUpTemporaryDirectoriesIfNecessary () {
+    if (process.platform === 'win32' && nodeVersion[0] >= 24) {
+      // Compiling with a snapshot requires compiling twice: a base image
+      // and the image with the snapshot embedded. In that situation, clang-cl
+      // complains that there are precompiled headers that changed between
+      // compilations and does not refresh them, but kills the compilation
+      // process with an error. Due to this, before attempting the second
+      // compilation, we will delete all pch files.
+      const nodeCompilationOutputDirectory = path.join((await fs.realpath(nodeSourcePath)), 'out');
+      logger.stepStarting(`(win32) Wiping output directory at ${nodeCompilationOutputDirectory}`);
+      await rimraf(nodeCompilationOutputDirectory, { glob: false });
+      logger.stepCompleted();
+    }
+  }
   async function writeMainFileAndCompile ({
     codeCacheBlob = new Uint8Array(0),
     codeCacheMode = 'ignore',
@@ -433,6 +447,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       logger);
   }
 
+  await cleanUpTemporaryDirectoriesIfNecessary();
   let binaryPath: string;
   if (!options.useCodeCache && !options.useNodeSnapshot) {
     binaryPath = await writeMainFileAndCompile();
@@ -450,18 +465,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       throw new Error('Empty code cache/snapshot result');
     }
     logger.stepCompleted();
-    if (process.platform === 'win32' && nodeVersion[0] >= 24) {
-      // Compiling with a snapshot requires compiling twice: a base image
-      // and the image with the snapshot embedded. In that situation, clang-cl
-      // complains that there are precompiled headers that changed between
-      // compilations and does not refresh them, but kills the compilation
-      // process with an error. Due to this, before attempting the second
-      // compilation, we will delete all pch files.
-      const nodeCompilationOutputDirectory = path.join((await fs.realpath(nodeSourcePath)), 'out');
-      logger.stepStarting(`(win32) Wiping output directory at ${nodeCompilationOutputDirectory}`);
-      await rimraf(nodeCompilationOutputDirectory, { glob: false });
-      logger.stepCompleted();
-    }
+    await cleanUpTemporaryDirectoriesIfNecessary();
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
       snapshotBlob: result,
       snapshotMode: 'consume'
