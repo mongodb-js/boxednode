@@ -352,11 +352,9 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       enableBindingsPatch
     }));
 
-  const { customCodeSource, customCodeConfigureParam, customCodeEntryPoint } = {
-    customCodeSource: path.join(nodeSourcePath, 'lib-boxednode', `${namespace}.js`),
-    customCodeConfigureParam: `./lib-boxednode/${namespace}.js`,
-    customCodeEntryPoint: `lib-boxednode/${namespace}`
-  };
+  const customCodeSource = path.join(nodeSourcePath, 'lib-boxednode', `${namespace}.js`);
+  const customCodeConfigureParam = `./lib-boxednode/${namespace}.js`;
+  const customCodeEntryPoint = `lib-boxednode/${namespace}`;
 
   await fs.mkdir(path.dirname(customCodeSource), { recursive: true });
   await fs.writeFile(customCodeSource, entryPointTrampolineSource);
@@ -461,9 +459,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       // compilation, we will delete all pch files.
       const resolvedNodeSourcePath = (await fs.realpath(nodeSourcePath)).replace(/\\/g, '/');
       logger.stepStarting(`(win32) Deleting precompiled headers at ${resolvedNodeSourcePath}`);
-      await rimraf(`${resolvedNodeSourcePath}/**/*.pch`, { glob: { follow: true, nodir: true } });
-      await rimraf(`${resolvedNodeSourcePath}/**/out/`, { glob: { follow: true } });
-      await rimraf(`${resolvedNodeSourcePath}/**/obj/`, { glob: { follow: true } });
+      await rimraf(`${resolvedNodeSourcePath}/out`);
       logger.stepCompleted();
     }
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
