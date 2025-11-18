@@ -11,7 +11,7 @@
     "boxednode": "bin/boxednode.js"
   },
   "engines": {
-    "node": ">= 12.4.0"
+    "node": ">= 20.19.5"
   },
   "scripts": {
     "lint": "eslint **/*.ts bin/*.js",
@@ -19,7 +19,8 @@
     "test-ci": "nyc mocha --colors -r ts-node/register test/*.ts",
     "build": "npm run compile-ts && gen-esm-wrapper . ./.esm-wrapper.mjs",
     "prepack": "npm run build",
-    "compile-ts": "tsc -p tsconfig.json"
+    "compile-ts": "tsc -p tsconfig.json",
+    "update-gha-workflow": "./scripts/update-gha-workflow.sh"
   },
   "keywords": [
     "node.js",
@@ -55,7 +56,7 @@
     "nyc": "^15.1.0",
     "ts-node": "^10.8.1",
     "typescript": "^4.0.3",
-    "weak-napi": "2.0.2"
+    "weak-napi": "node-ffi-napi/weak-napi#5449c78739d69aa286e43c7baf9819440b4544bb"
   },
   "dependencies": {
     "@pkgjs/nv": "^0.2.1",
@@ -63,10 +64,9 @@
     "cli-progress": "^3.8.2",
     "gyp-parser": "^1.0.4",
     "node-fetch": "^2.6.1",
-    "node-gyp": "^9.0.0",
+    "node-gyp": "^11.5.0",
     "pkg-up": "^3.1.0",
-    "rimraf": "^3.0.2",
-    "semver": "^7.3.2",
+    "rimraf": "^6.1.0",
     "tar": "^6.0.5",
     "yargs": "^16.0.3"
   }

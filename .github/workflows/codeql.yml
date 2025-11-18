@@ -42,13 +42,13 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Use Node.js v18.x
+    - name: Use Node.js v24.x
       if: matrix.language == 'cpp'
-      uses: actions/setup-node@8f152de45cc393bb48ce5d89d36b731f54556e65 # v4.0.0
+      uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
       with:
-        node-version: 18.x
+        node-version: 24.x
 
-    - name: Use Node.js v18.x
+    - name: Use Node.js v24.x
       if: matrix.language == 'cpp'
       run: |
         npm install

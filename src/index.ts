@@ -5,7 +5,7 @@ import tar from 'tar';
 import path from 'path';
 import zlib from 'zlib';
 import os from 'os';
-import rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import crypto from 'crypto';
 import { promisify } from 'util';
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
@@ -191,17 +191,8 @@ async function compileNode (
     env: env
   };
 
-  // Node.js 19.4.0 is currently the minimum version that has https://github.com/nodejs/node/pull/45887.
-  // We want to disable the shared-ro-heap flag since it would require
-  // all snapshots used by Node.js to be equal, something that we don't
-  // want to or need to guarantee as embedders.
-  const nodeVersion = await getNodeVersionFromSourceDirectory(sourcePath);
-  if (nodeVersion[0] > 19 || (nodeVersion[0] === 19 && nodeVersion[1] >= 4)) {
-    if (process.platform !== 'win32') {
-      buildArgs = ['--disable-shared-readonly-heap', ...buildArgs];
-    } else {
-      buildArgs = ['no-shared-roheap', ...buildArgs];
-    }
+  if (process.env.BOXEDNODE_DCHECKS_ENABLED === '1') {
+    buildArgs = ['--debug-node', '--v8-with-dchecks', ...buildArgs];
   }
 
   if (process.platform !== 'win32') {
@@ -248,14 +239,25 @@ async function compileNode (
     // conflicting arguments have been passed manually.
     const vcbuildArgs: string[] = [...buildArgs, ...makeArgs, 'projgen'];
     if (!vcbuildArgs.includes('debug') && !vcbuildArgs.includes('release')) { vcbuildArgs.push('release'); }
-    if (!vcbuildArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2019'); }
+    if (!vcbuildArgs.includes('x86') &&
+        !vcbuildArgs.includes('x64') &&
+        !vcbuildArgs.includes('ia32') &&
+        !vcbuildArgs.includes('arm64')
+    ) {
+      vcbuildArgs.push('x64');
+    }
+    if (!vcbuildArgs.some((arg) => /^vs/.test(arg))) { vcbuildArgs.push('vs2022'); }
 
     for (const module of linkedJSModules) {
       vcbuildArgs.push('link-module', module);
     }
-    await spawnBuildCommand(['cmd', '/c', '.\\vcbuild.bat', ...vcbuildArgs], options);
 
-    return path.join(sourcePath, 'Release', 'node.exe');
+    await spawnBuildCommand(['cmd', '/c', '.\\vcbuild.bat', ...vcbuildArgs], options);
+    if (vcbuildArgs.includes('debug')) {
+      return path.join(sourcePath, 'Debug', 'node.exe');
+    } else {
+      return path.join(sourcePath, 'Release', 'node.exe');
+    }
   }
 }
 
@@ -350,25 +352,9 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       enableBindingsPatch
     }));
 
-  /**
-   * Since Node 20.x, external source code linked from `lib` directory started
-   * failing the Node.js build process because of the file being linked multiple
-   * times which is why we do not link the external files anymore from `lib`
-   * directory and instead from a different directory, `lib-boxednode`. This
-   * however does not work for any node version < 20 which is why we are
-   * conditionally generating the entry point and configure params here based on
-   * Node version.
-   */
-  const { customCodeSource, customCodeConfigureParam, customCodeEntryPoint } = nodeVersion[0] >= 20
-    ? {
-      customCodeSource: path.join(nodeSourcePath, 'lib-boxednode', `${namespace}.js`),
-      customCodeConfigureParam: `./lib-boxednode/${namespace}.js`,
-      customCodeEntryPoint: `lib-boxednode/${namespace}`
-    } : {
-      customCodeSource: path.join(nodeSourcePath, 'lib', namespace, `${namespace}.js`),
-      customCodeConfigureParam: `./lib/${namespace}/${namespace}.js`,
-      customCodeEntryPoint: `${namespace}/${namespace}`
-    };
+  const customCodeSource = path.join(nodeSourcePath, 'lib-boxednode', `${namespace}.js`);
+  const customCodeConfigureParam = `./lib-boxednode/${namespace}.js`;
+  const customCodeEntryPoint = `lib-boxednode/${namespace}`;
 
   await fs.mkdir(path.dirname(customCodeSource), { recursive: true });
   await fs.writeFile(customCodeSource, entryPointTrampolineSource);
@@ -392,6 +378,20 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
     ? createCompressedBlobDefinition
     : createUncompressedBlobDefinition;
 
+  async function cleanUpTemporaryDirectoriesIfNecessary () {
+    if (process.platform === 'win32' && nodeVersion[0] >= 24) {
+      // Compiling with a snapshot requires compiling twice: a base image
+      // and the image with the snapshot embedded. In that situation, clang-cl
+      // complains that there are precompiled headers that changed between
+      // compilations and does not refresh them, but kills the compilation
+      // process with an error. Due to this, before attempting the second
+      // compilation, we will delete all pch files.
+      const nodeCompilationOutputDirectory = path.join((await fs.realpath(nodeSourcePath)), 'out');
+      logger.stepStarting(`(win32) Wiping output directory at ${nodeCompilationOutputDirectory}`);
+      await rimraf(nodeCompilationOutputDirectory, { glob: false });
+      logger.stepCompleted();
+    }
+  }
   async function writeMainFileAndCompile ({
     codeCacheBlob = new Uint8Array(0),
     codeCacheMode = 'ignore',
@@ -447,6 +447,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       logger);
   }
 
+  await cleanUpTemporaryDirectoriesIfNecessary();
   let binaryPath: string;
   if (!options.useCodeCache && !options.useNodeSnapshot) {
     binaryPath = await writeMainFileAndCompile();
@@ -464,6 +465,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
       throw new Error('Empty code cache/snapshot result');
     }
     logger.stepCompleted();
+    await cleanUpTemporaryDirectoriesIfNecessary();
     binaryPath = await writeMainFileAndCompile(options.useNodeSnapshot ? {
       snapshotBlob: result,
       snapshotMode: 'consume'
@@ -480,7 +482,7 @@ async function compileJSFileAsBinaryImpl (options: CompilationOptions, logger: L
 
   if (options.clean) {
     logger.stepStarting('Cleaning temporary directory');
-    await promisify(rimraf)(options.tmpdir, { glob: false });
+    await rimraf(options.tmpdir, { glob: false });
     logger.stepCompleted();
   }
 }

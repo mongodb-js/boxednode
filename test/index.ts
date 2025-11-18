@@ -3,13 +3,15 @@ import path from 'path';
 import os from 'os';
 import assert from 'assert';
 import childProcess from 'child_process';
-import semver from 'semver';
 import { promisify } from 'util';
 import pkgUp from 'pkg-up';
 import { promises as fs } from 'fs';
 
 const execFile = promisify(childProcess.execFile);
 const exeSuffix = process.platform === 'win32' ? '.exe' : '';
+
+// we are using 4h because compiling in windows might take more time
+const DEFAULT_TIMEOUT = 4 * 60 * 60 * 1000;
 
 describe('basic functionality', () => {
   // Test the currently running Node.js version. Other versions can be checked
@@ -18,7 +20,7 @@ describe('basic functionality', () => {
 
   describe(`On Node v${version}`, function () {
     it('works in a simple case', async function () {
-      this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      this.timeout(DEFAULT_TIMEOUT);
       await compileJSFileAsBinary({
         nodeVersionRange: version,
         sourceFile: path.resolve(__dirname, 'resources/example.js'),
@@ -112,11 +114,7 @@ describe('basic functionality', () => {
     });
 
     it('works with a Nan addon', async function () {
-      if (semver.lt(version, '12.19.0')) {
-        return this.skip(); // no addon support available
-      }
-
-      this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      this.timeout(DEFAULT_TIMEOUT);
       await compileJSFileAsBinary({
         nodeVersionRange: version,
         sourceFile: path.resolve(__dirname, 'resources/example.js'),
@@ -139,11 +137,7 @@ describe('basic functionality', () => {
     });
 
     it('works with a N-API addon', async function () {
-      if (semver.lt(version, '14.13.0')) {
-        return this.skip(); // no N-API addon support available
-      }
-
-      this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      this.timeout(DEFAULT_TIMEOUT);
       await compileJSFileAsBinary({
         nodeVersionRange: version,
         sourceFile: path.resolve(__dirname, 'resources/example.js'),
@@ -166,7 +160,7 @@ describe('basic functionality', () => {
     });
 
     it('passes through env vars and runs the pre-compile hook', async function () {
-      this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      this.timeout(DEFAULT_TIMEOUT);
       let ranPreCompileHook = false;
       async function preCompileHook (nodeSourceTree: string) {
         ranPreCompileHook = true;
@@ -189,7 +183,7 @@ describe('basic functionality', () => {
     });
 
     it('works with code caching support', async function () {
-      this.timeout(2 * 60 * 60 * 1000); // 2 hours
+      this.timeout(DEFAULT_TIMEOUT);
       await compileJSFileAsBinary({
         nodeVersionRange: version,
         sourceFile: path.resolve(__dirname, 'resources/example.js'),
@@ -216,9 +210,9 @@ describe('basic functionality', () => {
 
     for (const compressBlobs of [false, true]) {
       it(`works with snapshot support (compressBlobs = ${compressBlobs})`, async function () {
-        this.timeout(2 * 60 * 60 * 1000); // 2 hours
+        this.timeout(DEFAULT_TIMEOUT);
         await compileJSFileAsBinary({
-          nodeVersionRange: '^20.13.0',
+          nodeVersionRange: version,
           sourceFile: path.resolve(__dirname, 'resources/snapshot-echo-args.js'),
           targetFile: path.resolve(__dirname, `resources/snapshot-echo-args${exeSuffix}`),
           useNodeSnapshot: true,
