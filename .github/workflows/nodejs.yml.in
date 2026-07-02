@@ -41,7 +41,12 @@ jobs:
           - { node: 20.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
           - { node: 22.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
           - { node: 24.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
-          - { node: 26.x, os: windows-latest, vs-version: '18', configure-args: vs2026 }
+          # TEMPORARY: Node 26.4.0 (latest release) fails to build with VS2026's
+          # Clang 22, which the libffi fix in nodejs/node#64222 addresses. That
+          # fix is on main but not yet in a v26.x release, so compile a main
+          # nightly that contains it to verify VS2026 works. Revert to a plain
+          # 26.x release once the fix lands in one.
+          - { node: 26.x, os: windows-latest, vs-version: '18', configure-args: vs2026, test-node-version: v27.0.0-nightly20260702b2e83150cb }
         test-to-run: <<TEST_NAMES>>
     runs-on: ${{ matrix.target.os }}
     steps:
@@ -74,3 +79,6 @@ jobs:
         env:
           BOXEDNODE_MAKE_ARGS: "debug"
           BOXEDNODE_CONFIGURE_ARGS: ${{ matrix.target.configure-args }}
+          # When set, boxednode compiles this exact version from source instead
+          # of the host Node.js version. Empty for release legs.
+          TEST_NODE_VERSION: ${{ matrix.target.test-node-version }}
