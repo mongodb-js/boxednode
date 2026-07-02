@@ -3,7 +3,7 @@ import { Logger } from './logger';
 import crypto from 'crypto';
 import childProcess from 'child_process';
 import { promisify } from 'util';
-import tar from 'tar';
+import * as tar from 'tar';
 import stream from 'stream';
 import zlib from 'zlib';
 import { once } from 'events';
@@ -55,10 +55,10 @@ export async function copyRecursive (sourceDir: string, targetDir: string): Prom
     tar.c({
       cwd: sourceDir,
       gzip: false
-    }, ['./']),
+    }, ['./']) as unknown as stream.Readable,
     tar.x({
       cwd: targetDir
-    })
+    }) as unknown as stream.Writable
   );
 }
 

@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node-version: [20.x, 22.x, 24.x]
+        node-version: [20.x, 22.x, 24.x, 26.x]
         test-to-run: ["works in a simple case","works with a Nan addon","works with a N-API addon","passes through env vars and runs the pre-compile hook","works with code caching support","works with snapshot support (compressBlobs = "]
     runs-on: ${{ matrix.os }}
     steps:
@@ -42,8 +42,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest]
-        node-version: [20.x, 22.x, 24.x]
-        vs-version: ['17'] # 17 => VS2022
+        node-version: [20.x, 22.x, 24.x, 26.x]
+        vs-version: ['17', '18'] # 17 => VS2022, 18 => VS2025
         test-to-run: ["works in a simple case","works with a Nan addon","works with a N-API addon","passes through env vars and runs the pre-compile hook","works with code caching support","works with snapshot support (compressBlobs = "]
     runs-on: ${{ matrix.os }}
     steps:
@@ -59,7 +59,9 @@ jobs:
           vs-version: ${{ matrix.vs-version }}
           msbuild-architecture: x64
       - name: Install Dependencies
-        run: npm install
+        run: |
+          npm install --ignore-scripts
+          npm rebuild
       - name: Lint
         run: npm run lint
       - name: Build
@@ -68,4 +70,5 @@ jobs:
         run: npm run test-ci -- -f "${{ matrix.test-to-run }}"
         env:
           BOXEDNODE_MAKE_ARGS: "debug"
+          BOXEDNODE_CONFIGURE_ARGS: ${{ matrix.vs-version == '18' && 'vs2026' || '' }}
 
