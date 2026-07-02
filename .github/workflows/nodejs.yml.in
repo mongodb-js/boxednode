@@ -38,9 +38,11 @@ jobs:
       fail-fast: true
       matrix:
         target:
-          - { node: 20.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
-          - { node: 22.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
-          - { node: 24.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
+          # The windows-2022 runner image does not ship NASM, which Node's
+          # OpenSSL asm build requires, so build OpenSSL without asm there.
+          - { node: 20.x, os: windows-2022, vs-version: '17', configure-args: vs2022 openssl-no-asm }
+          - { node: 22.x, os: windows-2022, vs-version: '17', configure-args: vs2022 openssl-no-asm }
+          - { node: 24.x, os: windows-2022, vs-version: '17', configure-args: vs2022 openssl-no-asm }
           - { node: 26.x, os: windows-latest, vs-version: '18', configure-args: vs2026 }
         test-to-run: <<TEST_NAMES>>
     runs-on: ${{ matrix.target.os }}
