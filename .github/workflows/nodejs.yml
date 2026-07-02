@@ -14,7 +14,7 @@ jobs:
   test-posix:
     name: Unix tests
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os: [ubuntu-latest]
         node-version: [20.x, 22.x, 24.x, 26.x]
@@ -39,24 +39,26 @@ jobs:
   test-windows:
     name: Windows tests
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        os: [windows-latest]
-        node-version: [20.x, 22.x, 24.x, 26.x]
-        vs-version: ['17', '18'] # 17 => VS2022, 18 => VS2025
+        target:
+          - { node: 20.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
+          - { node: 22.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
+          - { node: 24.x, os: windows-2022, vs-version: '17', configure-args: vs2022 }
+          - { node: 26.x, os: windows-latest, vs-version: '18', configure-args: vs2026 }
         test-to-run: ["works in a simple case","works with a Nan addon","works with a N-API addon","passes through env vars and runs the pre-compile hook","works with code caching support","works with snapshot support (compressBlobs = "]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.target.os }}
     steps:
       - uses: actions/checkout@v5
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js ${{ matrix.target.node }}
         uses: actions/setup-node@v6
         with:
           check-latest: true
-          node-version: ${{ matrix.node-version }}
+          node-version: ${{ matrix.target.node }}
       - uses: microsoft/setup-msbuild@v2
         name: Setup MSBuild
         with:
-          vs-version: ${{ matrix.vs-version }}
+          vs-version: ${{ matrix.target.vs-version }}
           msbuild-architecture: x64
       - name: Install Dependencies
         run: |
@@ -70,5 +72,4 @@ jobs:
         run: npm run test-ci -- -f "${{ matrix.test-to-run }}"
         env:
           BOXEDNODE_MAKE_ARGS: "debug"
-          BOXEDNODE_CONFIGURE_ARGS: ${{ matrix.vs-version == '18' && 'vs2026' || '' }}
-
+          BOXEDNODE_CONFIGURE_ARGS: ${{ matrix.target.configure-args }}
