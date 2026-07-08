@@ -1,7 +1,7 @@
 'use strict';
 import { Logger, LoggerImpl } from './logger';
 import fetch from 'node-fetch';
-import tar from 'tar';
+import * as tar from 'tar';
 import path from 'path';
 import zlib from 'zlib';
 import os from 'os';

@@ -111,6 +111,31 @@ describe('basic functionality', () => {
         assert.strictEqual(timingData[timingData.length - 1][0], 'Whatever');
         assert.strictEqual(timingData[timingData.length - 1][1], 'running js');
       }
+
+      {
+        // The generated binary drives the event loop via node::SpinEventLoop(),
+        // which must still emit the 'beforeExit' and 'exit' events.
+        const { stdout } = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`), [
+            'process.on("beforeExit", () => console.log("beforeExit fired"));' +
+              'process.on("exit", (code) => console.log("exit fired " + code));' +
+              '"started"'
+          ],
+          { encoding: 'utf8' });
+        assert.strictEqual(stdout, 'started\nbeforeExit fired\nexit fired 0\n');
+      }
+
+      {
+        // process.exitCode set from JS must propagate to the process exit code.
+        const error = await execFile(
+          path.resolve(__dirname, `resources/example${exeSuffix}`),
+          ['process.exitCode = 42; "bye"'],
+          { encoding: 'utf8' }
+        ).then(() => null, (err) => err);
+        assert(error, 'expected the process to exit with a non-zero code');
+        assert.strictEqual(error.code, 42);
+        assert.strictEqual(error.stdout, 'bye\n');
+      }
     });
 
     it('works with a Nan addon', async function () {

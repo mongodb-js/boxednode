@@ -136,7 +136,7 @@ file.
 
 Unlike others, this solution:
 
-- Works for Node.js v12.x and above, without being tied to specific versions
+- Works for Node.js v20.19.5 and above, without being tied to specific versions
 - Uses only officially supported, stable Node.js APIs
 - Creates binaries that are not bloated with extra features
 - Creates binaries that can be signed and notarized on macOS

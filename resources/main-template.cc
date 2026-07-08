@@ -103,7 +103,7 @@ static MaybeLocal<Value> LoadBoxednodeEnvironment(Local<Context> context) {
         node::StartExecutionCallback{}
 #else
         [&](const StartExecutionCallbackInfo& info) -> MaybeLocal<Value> {
-          Isolate* isolate = context->GetIsolate();
+          Isolate* isolate = Isolate::GetCurrent();
           HandleScope handle_scope(isolate);
           Local<Value> entrypoint_name = String::NewFromUtf8(
               isolate,
@@ -304,34 +304,13 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
     }
     boxednode::MarkTime("Boxednode Binding", "Loaded Environment, entering loop");
 
-    {
-      // SealHandleScope protects against handle leaks from callbacks.
-      SealHandleScope seal(isolate);
-      bool more;
-      do {
-        uv_run(loop, UV_RUN_DEFAULT);
-
-        // V8 tasks on background threads may end up scheduling new tasks in the
-        // foreground, which in turn can keep the event loop going. For example,
-        // WebAssembly.compile() may do so.
-        platform->DrainTasks(isolate);
-
-        // If there are new tasks, continue.
-        more = uv_loop_alive(loop);
-        if (more) continue;
-
-        // node::EmitBeforeExit() is used to emit the 'beforeExit' event on
-        // the `process` object.
-        node::EmitBeforeExit(env.get());
-
-        // 'beforeExit' can also schedule new work that keeps the event loop
-        // running.
-        more = uv_loop_alive(loop);
-      } while (more == true);
-    }
-
-    // node::EmitExit() returns the current exit code.
-    exit_code = node::EmitExit(env.get());
+    // SpinEventLoop() runs the libuv event loop until it is drained, draining
+    // V8 platform tasks in between (background threads may schedule new
+    // foreground tasks that keep the loop alive, e.g. WebAssembly.compile()),
+    // emits the 'beforeExit' event (which may itself schedule more work and
+    // keep the loop running), and finally emits the 'exit' event, returning the
+    // resulting exit code.
+    exit_code = SpinEventLoop(env.get()).FromMaybe(1);
 
     // node::Stop() can be used to explicitly stop the event loop and keep
     // further JavaScript from running. It can be called from any thread,

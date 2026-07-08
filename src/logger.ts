@@ -46,6 +46,6 @@ export class LoggerImpl implements Logger {
   }
 
   doProgress (current: number): void {
-    this.cliProgress.update(current);
+    this.cliProgress?.update(current);
   }
 }
